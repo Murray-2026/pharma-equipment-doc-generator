@@ -1,523 +1,394 @@
 import streamlit as st
-import os
-from io import BytesIO
-from datetime import datetime
 import json
-from utils.document_utils import parse_uploaded_file, extract_requirements, fill_template
+from datetime import datetime
 
 st.set_page_config(
-    page_title="制药隔离器售前文档生成器",
+    page_title="隔离器售前文档生成系统",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-def load_from_local_storage(key, default=None):
+def load_data(key, default=None):
     try:
         data = st.session_state.get(f"local_{key}")
         if data is None:
-            data_str = st.query_params.get(key)
-            if data_str:
-                data = json.loads(data_str)
+            data = st.query_params.get(key)
+            if data:
+                data = json.loads(data)
                 st.session_state[f"local_{key}"] = data
         return data if data is not None else default
     except:
         return default
 
-def save_to_local_storage(key, value):
+def save_data(key, value):
     st.session_state[f"local_{key}"] = value
 
-def init_session_state():
-    if "generated_documents" not in st.session_state:
-        st.session_state.generated_documents = None
-    if "selected_config" not in st.session_state:
-        st.session_state.selected_config = "standard"
+def init_session():
     if "urs_text" not in st.session_state:
         st.session_state.urs_text = ""
-    if "custom_templates" not in st.session_state:
-        st.session_state.custom_templates = {
-            "urs_response": None,
-            "technical_spec": None,
-            "quotation": None
-        }
-    if "custom_template_files" not in st.session_state:
-        st.session_state.custom_template_files = {
-            "urs_response": None,
-            "technical_spec": None,
-            "quotation": None
-        }
+    if "selected_equipment" not in st.session_state:
+        st.session_state.selected_equipment = []
+    if "key_params" not in st.session_state:
+        st.session_state.key_params = ""
+    if "budget_level" not in st.session_state:
+        st.session_state.budget_level = "标准型"
+    if "language" not in st.session_state:
+        st.session_state.language = "中文"
     if "history" not in st.session_state:
-        saved_history = load_from_local_storage("history", [])
-        st.session_state.history = saved_history
+        st.session_state.history = load_data("history", [])
     if "customers" not in st.session_state:
-        saved_customers = load_from_local_storage("customers", [])
-        st.session_state.customers = saved_customers
+        st.session_state.customers = load_data("customers", [])
     if "templates" not in st.session_state:
-        saved_templates = load_from_local_storage("templates", {})
-        st.session_state.templates = saved_templates
+        st.session_state.templates = load_data("templates", [])
+    if "generated_docs" not in st.session_state:
+        st.session_state.generated_docs = {"urs": "", "quotation": ""}
 
-def main():
-    init_session_state()
+def parse_urs(text):
+    result = {
+        "equipment": [],
+        "specs": [],
+        "compliance": [],
+        "key_points": []
+    }
     
-    st.title("🏭 制药隔离器售前文档生成器")
-    st.markdown("---")
-    
-    tabs = st.tabs(["📝 URS处理", "💰 快速报价", "📊 历史记录", "👥 客户档案", "📁 模板库"])
-    
-    with tabs[0]:
-        show_urs_processing()
-    
-    with tabs[1]:
-        show_quick_quotation()
-    
-    with tabs[2]:
-        show_history()
-    
-    with tabs[3]:
-        show_customers()
-    
-    with tabs[4]:
-        show_templates()
-
-def show_urs_processing():
-    st.markdown("### 📝 URS智能解析与逐条回复")
-    
-    col1, col2 = st.columns([1, 1])
-    
-    with col1:
-        st.markdown("#### 选择设备类型")
-        equipment_type = st.selectbox(
-            "设备类型",
-            ["单体无菌隔离器", "VHP传递窗", "整线隔离器", "单体负压隔离器"],
-            index=0,
-            key="urs_equipment"
-        )
+    lines = text.split('\n')
+    for line in lines:
+        line = line.strip()
+        if not line: continue
         
-        st.markdown("#### 选择法规体系（可多选）")
-        regulations = st.multiselect(
-            "法规标准",
-            ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "WHO GMP", "PIC/S GMP"],
-            default=["中国GMP 2010版"],
-            key="urs_regulations"
-        )
-    
-    with col2:
-        st.markdown("#### URS文档输入")
-        urs_input = st.text_area(
-            "粘贴URS内容",
-            height=200,
-            placeholder="粘贴客户URS文档内容...\n\n例如：\n1. 设备要求：单体无菌隔离器\n2. 尺寸要求：1200×800×1000mm\n3. 法规要求：符合中国GMP",
-            key="urs_text_input"
-        )
-        
-        uploaded_file = st.file_uploader(
-            "或上传URS文件（PDF/Word/Excel/TXT）",
-            type=["pdf", "docx", "xlsx", "txt"]
-        )
-        if uploaded_file:
-            text, _ = parse_uploaded_file(uploaded_file)
-            urs_input = text
-    
-    if urs_input.strip():
-        with st.spinner("正在智能解析URS..."):
-            requirements = extract_requirements(urs_input)
-        
-        st.markdown("---")
-        st.markdown("### 🤖 智能解析结果")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.subheader("📦 设备类型")
-            if requirements["equipment_type"]:
-                st.success(f"✅ 检测到: **{requirements['equipment_type']}**")
+        if '隔离器' in line:
+            if '负压' in line:
+                result['equipment'].append('单体负压隔离器')
+            elif '整线' in line:
+                result['equipment'].append('整线隔离器')
             else:
-                st.info(f"当前选择: **{equipment_type}**")
+                result['equipment'].append('单体无菌隔离器')
+        if 'VHP' in line or '传递窗' in line:
+            result['equipment'].append('VHP传递窗')
         
-        with col2:
-            st.subheader("📋 合规要求")
-            if requirements["compliance"]:
-                st.markdown(f"检测到 {len(requirements['compliance'])} 条合规要求")
-            else:
-                st.info(f"已选法规: {', '.join(regulations)}")
+        if 'GMP' in line or 'FDA' in line or 'EU' in line or 'WHO' in line or 'PIC/S' in line:
+            result['compliance'].append(line)
         
-        with col3:
-            st.subheader("🎯 关键需求")
-            st.markdown(f"提取到 {len(requirements['key_points'])} 条关键需求")
-        
-        if st.button("📄 生成URS逐条回复", type="primary", use_container_width=True):
-            generate_urs_response(equipment_type, regulations, requirements, urs_input)
+        if '要求' in line or '规格' in line or '尺寸' in line or '参数' in line:
+            result['key_points'].append(line)
+    
+    result['equipment'] = list(set(result['equipment']))
+    return result
 
-def show_quick_quotation():
-    st.markdown("### 💰 快速报价单生成")
+def generate_urs_response():
+    customer_name = st.session_state.get('customer_name', '')
+    project_name = st.session_state.get('project_name', '')
+    contact = st.session_state.get('contact', '')
+    date = st.session_state.get('date', datetime.now().strftime('%Y-%m-%d'))
+    regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
+    equipment = st.session_state.selected_equipment
+    key_points = st.session_state.key_params.split('\n') if st.session_state.key_params else []
     
-    st.markdown("#### 基本信息")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        quote_number = st.text_input("报价单编号", value=f"QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]}", key="quote_number")
-    with col2:
-        quote_date = st.date_input("日期", value=datetime.now(), key="quote_date")
-    with col3:
-        valid_until = st.date_input("有效期至", key="quote_valid_until")
-    with col4:
-        contact_person = st.text_input("联系人", key="quote_contact")
-    
-    st.markdown("#### 客户与供应商信息")
-    col1, col2 = st.columns(2)
-    with col1:
-        customer_name = st.text_input("客户名称", key="quote_customer")
-        project_name = st.text_input("项目名称", key="quote_project")
-    with col2:
-        supplier_name = st.text_input("供应商名称", value="XX隔离器技术有限公司", key="quote_supplier")
-        equipment_model = st.text_input("设备型号", key="quote_model")
-    
-    st.markdown("#### 设备与法规信息")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        equipment_type = st.selectbox(
-            "设备类型",
-            ["单体无菌隔离器", "VHP传递窗", "整线隔离器", "单体负压隔离器"],
-            index=0,
-            key="quote_equipment"
-        )
-    with col2:
-        config_level = st.select_slider(
-            "配置等级",
-            options=["基础", "标准", "高级"],
-            value="标准",
-            key="quote_config"
-        )
-    with col3:
-        regulations = st.multiselect(
-            "适用法规",
-            ["中国GMP", "FDA 21 CFR", "EU GMP Annex 1", "WHO GMP", "PIC/S"],
-            default=["中国GMP", "EU GMP Annex 1", "WHO GMP"],
-            key="quote_regulations"
-        )
-    
-    st.markdown("#### 技术参数确认")
-    with st.expander("展开技术参数", expanded=False):
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            inner_dimensions = st.text_input("内部尺寸", value="L600×D600×H600mm", key="tech_dimensions")
-        with col2:
-            vhp_concentration = st.text_input("VHP浓度范围", value="2-6 mg/L", key="tech_vhp")
-        with col3:
-            sterilization_time = st.text_input("灭菌时间", value="60-120min", key="tech_time")
-        with col4:
-            temperature_range = st.text_input("灭菌温度范围", value="25-45°C", key="tech_temp")
-    
-    st.markdown("#### 服务选项")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        include_installation = st.checkbox("包含安装调试", value=True, key="service_install")
-    with col2:
-        include_validation = st.checkbox("包含IQ/OQ/PQ验证", value=True, key="service_validation")
-    with col3:
-        include_training = st.checkbox("包含技术培训", value=True, key="service_training")
-    
-    if st.button("✨ 一键生成报价单", type="primary", use_container_width=True):
-        generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person,
-                          quote_number, quote_date, valid_until, supplier_name, equipment_model,
-                          inner_dimensions, vhp_concentration, sterilization_time, temperature_range,
-                          include_installation, include_validation, include_training)
+    content = f"""# 用户需求说明（URS）逐条回复
 
-def show_history():
-    st.markdown("### 📊 历史记录")
-    
-    if not st.session_state.history:
-        st.info("暂无历史记录")
-        return
-    
-    for i, record in enumerate(reversed(st.session_state.history), 1):
-        with st.expander(f"📄 {record['type']} - {record['equipment']} - {record['date']}"):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f"**客户**: {record.get('customer', '未知')}")
-                st.markdown(f"**法规**: {record.get('regulations', '')}")
-            with col2:
-                st.markdown(f"**配置**: {record.get('config', '标准')}")
-                st.markdown(f"**金额**: {record.get('amount', '')}")
-            
-            if "content" in record:
-                st.download_button(
-                    "下载文档",
-                    data=record["content"].encode("utf-8"),
-                    file_name=f"document_{i}.md"
-                )
-
-def show_customers():
-    st.markdown("### 👥 客户档案")
-    
-    tab1, tab2 = st.tabs(["客户列表", "新建客户"])
-    
-    with tab1:
-        if not st.session_state.customers:
-            st.info("暂无客户档案")
-        else:
-            for customer in st.session_state.customers:
-                with st.expander(f"🏢 {customer['name']}"):
-                    st.markdown(f"**联系人**: {customer.get('contact', '')}")
-                    st.markdown(f"**电话**: {customer.get('phone', '')}")
-                    st.markdown(f"**邮箱**: {customer.get('email', '')}")
-                    st.markdown(f"**备注**: {customer.get('notes', '')}")
-    
-    with tab2:
-        name = st.text_input("客户名称", key="customer_name")
-        contact = st.text_input("联系人", key="customer_contact")
-        phone = st.text_input("联系电话", key="customer_phone")
-        email = st.text_input("邮箱", key="customer_email")
-        notes = st.text_area("备注", key="customer_notes")
-        
-        if st.button("保存客户", type="primary", key="save_customer_btn"):
-            customer = {
-                "name": name,
-                "contact": contact,
-                "phone": phone,
-                "email": email,
-                "notes": notes,
-                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
-            }
-            st.session_state.customers.append(customer)
-            save_to_local_storage("customers", st.session_state.customers)
-            st.success("客户保存成功")
-
-def show_templates():
-    st.markdown("### 📁 模板库")
-    
-    st.markdown("#### 占位符说明")
-    placeholders = [
-        "{设备类型}", "{法规标准}", "{生成日期}", "{年份}",
-        "{URS文档编号}", "{技术文档编号}", "{报价文档编号}",
-        "{关键需求点}", "{技术规格}", "{客户名称}", "{项目名称}"
-    ]
-    
-    st.code("\n".join(placeholders))
-    
-    uploaded_template = st.file_uploader("上传自定义模板", type=["docx", "xlsx", "md", "txt"])
-    if uploaded_template:
-        template_name = st.text_input("模板名称")
-        if st.button("保存模板"):
-            st.session_state.templates[template_name] = uploaded_template.read()
-            save_to_local_storage("templates", st.session_state.templates)
-            st.success("模板保存成功")
-    
-    if st.session_state.templates:
-        st.markdown("#### 已保存模板")
-        for name in st.session_state.templates.keys():
-            st.write(f"- {name}")
-
-def generate_urs_response(equipment_type, regulations, requirements, urs_text):
-    regulation_text = ", ".join(regulations)
-    doc_number = datetime.now().strftime("%Y%m%d")
-    
-    content = f"""# {equipment_type} - URS逐条回复
-
-**文档编号**: PHARMA-URS-{doc_number}
-**生成日期**: {datetime.now().strftime("%Y年%m月%d日")}
-**适用法规**: {regulation_text}
+**客户名称**: {customer_name or '待填写'}  
+**项目名称**: {project_name or '待填写'}  
+**联系人**: {contact or '待填写'}  
+**日期**: {date}  
+**设备类型**: {', '.join(equipment) if equipment else '待确认'}  
+**适用法规**: {', '.join(regulations) if regulations else '待确认'}
 
 ---
 
 ## 一、概述
 
-本回复文档针对贵公司提出的{equipment_type}用户需求说明（URS）进行逐条响应，确保方案符合{regulation_text}要求。
+本回复文档针对贵公司提出的设备需求进行逐条响应，确保方案符合相关法规要求。
 
 ## 二、URS逐条回复
 
 """
     
-    for i, point in enumerate(requirements["key_points"], 1):
-        content += f"""### {i}. {point}
+    for i, point in enumerate(key_points[:10] if key_points else ['请输入URS需求'], 1):
+        content += f"""### URS-{str(i).zfill(3)} {point}
 
-**我方响应**: 我方完全理解并满足此项要求，将在IQ/OQ/PQ验证中予以确认。
-**法规依据**: 符合{regulation_text}相关要求。
+**回复**: 满足  
+**技术说明**: 本设备可完全满足客户该项需求，具体技术方案详见技术规格书。  
+**法规依据**: 符合{', '.join(regulations)}相关要求。  
 **验证方式**: IQ/OQ/PQ
 
 """
     
-    content += """---
-
-## 三、合规声明
+    content += """## 三、合规声明
 
 我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
 
-**回复单位**: [贵公司名称]
-**技术负责人**: [负责人姓名]
-**联系电话**: [联系电话]
-**日期**: """ + datetime.now().strftime("%Y年%m月%d日")
-    
-    st.session_state.generated_documents = {"urs_response": content}
-    
-    with st.expander("📖 预览文档", expanded=True):
-        st.markdown(content)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📝 复制到剪贴板", content, "text/plain")
-    with col2:
-        st.download_button("📄 下载Markdown", content.encode("utf-8"), f"URS回复_{doc_number}.md")
-    
-    save_to_history("URS回复", equipment_type, regulations, content=content)
-
-def generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person,
-                      quote_number="", quote_date=datetime.now(), valid_until=None, supplier_name="XX隔离器技术有限公司", 
-                      equipment_model="", inner_dimensions="", vhp_concentration="", sterilization_time="", 
-                      temperature_range="", include_installation=True, include_validation=True, include_training=True):
-    
-    prices = {
-        "单体无菌隔离器": {"基础": [80, 150], "标准": [100, 200], "高级": [180, 320]},
-        "VHP传递窗": {"基础": [30, 60], "标准": [40, 80], "高级": [80, 150]},
-        "整线隔离器": {"基础": [300, 600], "标准": [400, 800], "高级": [700, 1500]},
-        "单体负压隔离器": {"基础": [100, 200], "标准": [120, 250], "高级": [250, 450]}
-    }
-    
-    price_range = prices[equipment_type][config_level]
-    base_price = (price_range[0] + price_range[1]) / 2
-    
-    quote_date_str = quote_date.strftime("%Y-%m-%d") if hasattr(quote_date, 'strftime') else str(quote_date)
-    valid_until_str = valid_until.strftime("%Y-%m-%d") if valid_until else ""
-    
-    content = f"""# 快速报价单
-## Quick Quotation
-
 ---
 
-## 报价单信息
+**回复单位**: XX隔离器技术有限公司  
+**技术负责人**: 待填写  
+**联系电话**: 待填写  
+**日期**: """ + date
+    
+    return content
 
-| 项目 | 内容 |
-|------|------|
-| 报价单编号 | {quote_number} |
-| 日期 | {quote_date_str} |
-| 有效期至 | {valid_until_str} |
-| 客户名称 | {customer_name or '待填写'} |
-| 项目名称 | {project_name or '待填写'} |
-| 供应商 | {supplier_name} |
-| 设备类型 | {equipment_type} |
-| 设备型号 | {equipment_model or 'VHP Pass-Through (Airlock) Chamber'} |
-| 适用法规 | {', '.join(regulations)} |
+def generate_quotation():
+    customer_name = st.session_state.get('customer_name', '')
+    project_name = st.session_state.get('project_name', '')
+    contact = st.session_state.get('contact', '')
+    date = st.session_state.get('date', datetime.now().strftime('%Y-%m-%d'))
+    equipment = st.session_state.selected_equipment
+    budget = st.session_state.budget_level
+    regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
+    
+    prices = {
+        '单体无菌隔离器': {'经济型': [80, 150], '标准型': [100, 200], '高端型': [180, 320]},
+        'VHP传递窗': {'经济型': [30, 60], '标准型': [40, 80], '高端型': [80, 150]},
+        '整线隔离器': {'经济型': [300, 600], '标准型': [400, 800], '高端型': [700, 1500]},
+        '单体负压隔离器': {'经济型': [100, 200], '标准型': [120, 250], '高端型': [250, 450]}
+    }
+    
+    eq = equipment[0] if equipment else '单体无菌隔离器'
+    price_range = prices[eq][budget]
+    
+    content = f"""# 快速报价单
+
+**报价编号**: QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]}  
+**日期**: {date}  
+**有效期**: 30天  
+**客户名称**: {customer_name or '待填写'}  
+**项目名称**: {project_name or '待填写'}  
+**设备类型**: {eq}  
+**配置等级**: {budget}  
+**适用法规**: {', '.join(regulations)}
 
 ---
 
 ## A. 设备概述
 
-{equipment_type}是一种基于汽化过氧化氢（VHP）灭菌原理的物料传递设备，用于洁净区与非洁净区（或不同洁净等级区域）之间的物料、工具传递。设备采用双门互锁安全设计，配置集成式VHP发生器，灭菌循环可编程控制（除湿-灭菌-排残-通风），灭菌效果达到SAL 10⁻⁶，残气经催化分解后H₂O₂残留浓度<1ppm，保障操作人员安全，适用于制药企业物料、工器具、耗材的在线灭菌传递。
-
-### 系统描述
-
-**工作原理**: {equipment_type}传递窗由两个互锁舱室组成，操作时仅一侧门可开启。物料放入后关闭门，启动VHP灭菌循环（除湿→灭菌→排残）。VHP通过雾化过氧化氢，均匀分布整个舱室，完成后经催化分解残气至安全浓度，方可开启对侧门取出物料。双门互锁系统确保两侧门不同时开启，防止交叉污染。
-
----
+{equipment_desc(eq)}
 
 ## B. 关键技术参数
 
-| 参数项目 | 标准配置 | 高级配置 |
-|----------|----------|----------|
-| 传递舱内尺寸 | {inner_dimensions or 'L600×D600×H600mm'} | L800×D800×H800mm |
-| VHP浓度范围 | {vhp_concentration or '2-6 mg/L'} | 2-8 mg/L |
-| 灭菌时间 | {sterilization_time or '60-120min'} | 60-180min |
-| 灭菌温度范围 | {temperature_range or '25-45°C'} | 25-50°C |
-| 灭菌效果 | SAL 10⁻⁶ | SAL 10⁻⁶ |
-| 残气浓度 | <1ppm | <1ppm |
-| 双门互锁 | 机械+电气联锁 | 机械+PLC三重联锁 |
-| 内壁材质 | 316L不锈钢 Ra≤0.4μm | 316L不锈钢 Ra≤0.4μm |
-| 控制系统 | PLC+7寸触摸屏 | PLC+SCADA+10寸触摸屏 |
-| 数据记录 | 数据自动记录 | 完整审计追踪记录 |
-
----
+| 参数 | 配置 |
+|------|------|
+| 灭菌效果 | SAL 10⁻⁶ |
+| 残气浓度 | <1ppm |
+| 材质 | 316L不锈钢 |
 
 ## C. 报价明细
 
-### C.1 {config_level}方案报价
-
-| 序号 | 项目 | 金额（万元） | 备注 |
-|------|------|--------------|------|
-| 1 | 设备本体 | {base_price * 0.7:.1f} | 含主体结构、手套、视窗等 |
-| 2 | 安装调试 | {base_price * 0.08:.1f if include_installation else 0} | 含现场安装、调试、开机验证 |
-| 3 | 验证服务（IQ/OQ/PQ） | {base_price * 0.1:.1f if include_validation else 0} | 含验证方案编制及执行 |
-| 4 | 培训服务 | {base_price * 0.02:.1f if include_training else 0} | 操作+维护培训，{3 if config_level == '标准' else 5}天 |
-| 5 | 备件包（首年） | {base_price * 0.02:.1f} | 易损件及推荐备件 |
-| 6 | 技术文件包 | {base_price * 0.02:.1f} | 含手册、图纸、证书 |
-| 7 | 国内运输+保险 | {base_price * 0.06:.1f} | 含运输一切险 |
-| 8 | **{config_level}方案合计** | **{(base_price * 1.1).round(1)}** | 含13%增值税 |
-
----
+| 项目 | 金额（万元） |
+|------|--------------|
+| 设备本体 | {price_range[0]} - {price_range[1]} |
+| 安装调试 | 含 |
+| 验证服务 | 含 |
+| 技术培训 | 含 |
+| **总计** | **{price_range[0]} - {price_range[1]}** |
 
 ## D. 配置清单
 
-### {config_level}配置包含:
-- {equipment_type}主机系统 ×1
-- HEPA过滤器（H14级） ×2
-- 备用手套（丁腈） ×2副
-- 专用工具包 ×1
-- 操作手册（中文/英文） ×1
-- 验证文件包（IQ/OQ/PQ） ×1
-- 备件清单及报价 ×1
+- 主机系统 ×1
+- HEPA过滤器 ×2
+- 备用手套 ×2副
+- 验证文件包 ×1
+
+## E. 售后服务
+
+| 项目 | 内容 |
+|------|------|
+| 质保期 | 12个月 |
+| 响应时间 | 48小时 |
 
 ---
 
-## E. 交货周期
-
-| 方案 | 预计周期 | 说明 |
-|------|----------|------|
-| {config_level}方案 | {16 if config_level == '标准' else 20}-28周 | 自合同签订及预付款到账之日起计算；含额外系统集成交付与调试时间 |
-
-> *交货周期受客户现场准备情况影响，如现场不具备安装条件可能相应顺延。
-
----
-
-## F. 售后服务条款
-
-| 项目 | 标准方案 | 高级方案 |
-|------|----------|----------|
-| 质保期 | 12个月（自SAT验收签署之日起） | 24个月（自SAT验收签署之日起） |
-| 远程响应时间 | 48小时内 | 24小时内 |
-| 现场响应时间 | 48小时内 | 24小时内 |
-| 年度保养 | 1次/年 | 2次/年 |
-| 软件升级 | 质保期内免费 | 质保期内免费+质保期后3年优惠 |
-| 设备备件 | 设备停产10年 | 设备停产10年 |
-| 技术培训 | 3天（操作+维护） | 5天（操作+维护+验证） |
-
----
-
-## 声明
-
-1. 本报价有效期为30天，逾期价格可能调整。
-2. 本报价不含土建、公用工程接口以外的工作。
-3. 最终价格以双方签订的正式合同为准。
-4. 如客户有重大变更，供应商保留调整报价的权利。
-
-**报价单位**: {supplier_name}  
-**联系人**: {contact_person or '待填写'}  
-**日期**: {quote_date_str}
+**供应商**: XX隔离器技术有限公司  
+**联系人**: {contact or '待填写'}  
+**日期**: {date}
 """
     
-    st.session_state.generated_documents = {"quotation": content}
-    
-    with st.expander("📖 预览报价单", expanded=True):
-        st.markdown(content)
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.download_button("📝 复制到剪贴板", content, "text/plain")
-    with col2:
-        st.download_button("📄 下载Markdown", content.encode("utf-8"), f"报价单_{doc_number}.md")
-    
-    save_to_history("报价单", equipment_type, regulations, config_level, f"¥{int(total * 1.28):,}", customer_name, content=content)
+    return content
 
-def save_to_history(doc_type, equipment, regulations, config="标准", amount="", customer="", content=""):
-    record = {
-        "type": doc_type,
-        "equipment": equipment,
-        "regulations": ", ".join(regulations),
-        "config": config,
-        "amount": amount,
-        "customer": customer,
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "content": content
+def equipment_desc(eq):
+    descs = {
+        '单体无菌隔离器': '无菌分装、无菌检测、称量操作的理想选择，正压运行，ISO 5级洁净度。',
+        'VHP传递窗': '物料/工具VHP灭菌传递，双门互锁，灭菌效果≥6-log。',
+        '整线隔离器': '灌装+轧盖+称重全线隔离，适用于无菌制剂生产线。',
+        '单体负压隔离器': '有毒/高活性药品OEL防护，负压运行，OEL控制<1μg/m³。'
     }
-    st.session_state.history.append(record)
-    save_to_local_storage("history", st.session_state.history)
+    return descs.get(eq, '')
+
+def main():
+    init_session()
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.markdown("### 📋 客户基本信息")
+        st.text_input("客户公司名称", key="customer_name")
+        st.text_input("项目名称", key="project_name")
+        
+        row1 = st.columns(2)
+        row1[0].text_input("联系人", key="contact")
+        row1[1].date_input("日期", key="date", value=datetime.now())
+        
+        st.markdown("**适用法规（多选）**")
+        regs = ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S']
+        for reg in regs:
+            st.checkbox(reg, key=f"reg_{reg}", value=True if reg == '中国GMP' else False)
+        
+        st.text_input("供应商名称", value="XX隔离器技术有限公司", key="supplier_name")
+        
+        st.markdown("---")
+        st.markdown("### 📝 客户URS/询盘输入")
+        st.text_area("请粘贴客户URS内容...", height=150, key="urs_text",
+                     placeholder="1. 设备需满足无菌隔离要求，正压运行\n2. 操作区洁净度ISO 5级\n3. VHP灭菌，灭菌效果≥6-log")
+        
+        row2 = st.columns(3)
+        if row2[0].button("🔍 智能解析"):
+            parsed = parse_urs(st.session_state.urs_text)
+            st.session_state.selected_equipment = parsed['equipment']
+            st.session_state.key_params = '\n'.join(parsed['key_points'])
+            st.success(f"解析完成！识别到: {', '.join(parsed['equipment'])}")
+        
+        if row2[1].button("📄 加载示例"):
+            st.session_state.urs_text = """1. VHP灭菌传递窗，双门互锁
+2. 灭菌循环可调（浓度、时间、温度）
+3. 灭菌效果≥6-log SAL
+4. VHP残气排除至<1ppm
+5. 内腔尺寸不小于L800×W800×H900mm
+6. 需满足中国GMP及EU GMP Annex 1要求"""
+        
+        if row2[2].button("🗑 清空"):
+            st.session_state.urs_text = ""
+            st.session_state.selected_equipment = []
+            st.session_state.key_params = ""
+        
+        with st.expander("⚙️ 手动调整", expanded=True):
+            st.markdown("**设备类型确认/修正（可多选）**")
+            eqs = ['单体无菌隔离器', 'VHP传递窗', '整线隔离器', '单体负压隔离器']
+            for eq in eqs:
+                st.checkbox(eq, key=f"eq_{eq}", 
+                           value=True if eq in st.session_state.selected_equipment else False)
+            
+            st.text_area("关键参数修正", height=100, key="key_params",
+                        placeholder="解析URS后将自动填充，也可手动输入")
+            
+            st.selectbox("预算级别", ['经济型', '标准型', '高端型'], key="budget_level")
+            st.selectbox("语言", ['中文', 'English', '中英双语'], key="language")
+        
+        st.markdown("---")
+        st.markdown("### 💾 保存与加载")
+        
+        row3 = st.columns(2)
+        if row3[0].button("💾 保存为报价单"):
+            record = {
+                'customer': st.session_state.customer_name,
+                'equipment': st.session_state.selected_equipment,
+                'date': datetime.now().strftime('%Y-%m-%d'),
+                'budget': st.session_state.budget_level
+            }
+            st.session_state.history.append(record)
+            save_data("history", st.session_state.history)
+            st.success("保存成功！")
+        
+        template_name = st.text_input("模板名称")
+        if row3[1].button("📑 保存为模板"):
+            st.session_state.templates.append({
+                'name': template_name,
+                'content': st.session_state.urs_text,
+                'date': datetime.now().strftime('%Y-%m-%d')
+            })
+            save_data("templates", st.session_state.templates)
+            st.success("模板保存成功！")
+        
+        st.selectbox("加载模板", [t['name'] for t in st.session_state.templates] + [''], key="load_template")
+        st.selectbox("加载客户", [c['name'] for c in st.session_state.customers] + [''], key="load_customer")
+        
+        with st.expander("📁 历史报价单", expanded=False):
+            if st.session_state.history:
+                for record in st.session_state.history[:5]:
+                    st.markdown(f"{record['date']} | {', '.join(record['equipment'])} | {record.get('customer', '')}")
+            else:
+                st.info("暂无历史报价单")
+        
+        with st.expander("👥 客户档案", expanded=False):
+            if st.session_state.customers:
+                for cust in st.session_state.customers[:5]:
+                    st.markdown(f"🏢 {cust['name']} | {cust.get('contact', '')}")
+            else:
+                st.info("暂无客户记录")
+        
+        if st.button("🚀 生成文档（URS回复 + 快速报价）", use_container_width=True, type="primary"):
+            st.session_state.generated_docs['urs'] = generate_urs_response()
+            st.session_state.generated_docs['quotation'] = generate_quotation()
+            st.success("文档生成成功！")
+    
+    with col2:
+        tabs = st.tabs(["📋 URS逐条回复", "💰 快速报价单", "📚 模板库"])
+        
+        with tabs[0]:
+            st.markdown("### 📋 URS逐条回复")
+            if st.session_state.generated_docs['urs']:
+                st.markdown(st.session_state.generated_docs['urs'])
+            else:
+                st.info("请在左侧输入客户URS内容并点击\"智能解析\"，然后点击\"生成文档\"")
+        
+        with tabs[1]:
+            st.markdown("### 💰 快速报价单")
+            if st.session_state.generated_docs['quotation']:
+                st.markdown(st.session_state.generated_docs['quotation'])
+            else:
+                st.info("请在左侧输入信息并点击\"生成文档\"")
+        
+        with tabs[2]:
+            st.markdown("### 📚 模板库")
+            
+            default_templates = [
+                {
+                    'name': '负压隔离器询盘（高活性药品）',
+                    'equipment': '单体负压隔离器',
+                    'regulations': '中国GMP、FDA 21 CFR',
+                    'content': """1. 负压隔离器，用于高活性药品操作
+2. OEL控制目标<1μg/m³
+3. 双重HEPA排风过滤，在线扫描检漏
+4. 袋进袋出(BIBO)过滤器更换
+5. 工作区尺寸L1500×D900×H900mm"""
+                },
+                {
+                    'name': 'VHP传递窗询盘',
+                    'equipment': 'VHP传递窗',
+                    'regulations': '中国GMP',
+                    'content': """1. VHP灭菌传递窗，双门互锁
+2. 灭菌循环可调（浓度、时间、温度）
+3. 灭菌效果≥6-log SAL
+4. VHP残气排除至<1ppm
+5. 内腔尺寸不小于L800×W800×H900mm"""
+                },
+                {
+                    'name': '标准无菌隔离器询盘',
+                    'equipment': '单体无菌隔离器',
+                    'regulations': '中国GMP、EU GMP',
+                    'content': """1. 设备需满足无菌隔离要求，正压运行
+2. 操作区洁净度ISO 5级
+3. VHP灭菌，灭菌效果≥6-log
+4. 配备手套检漏系统
+5. 操作区尺寸不小于L1200×D800×H900mm"""
+                }
+            ]
+            
+            for template in default_templates:
+                with st.expander(f"📄 {template['name']}"):
+                    st.markdown(f"**设备类型**: {template['equipment']}")
+                    st.markdown(f"**适用法规**: {template['regulations']}")
+                    st.markdown(f"**内容**: \n{template['content']}")
+                    if st.button(f"使用此模板", key=f"use_{template['name']}"):
+                        st.session_state.urs_text = template['content']
+                        st.session_state.selected_equipment = [template['equipment']]
+                        st.success("模板已加载！")
+        
+        row4 = st.columns(2)
+        if row4[0].button("📋 复制全文"):
+            full_text = st.session_state.generated_docs['urs'] + '\n\n---\n\n' + st.session_state.generated_docs['quotation']
+            st.write(full_text)
+        
+        if row4[1].button("🖨 打印/导出PDF"):
+            st.write("打印功能已准备就绪")
 
 if __name__ == "__main__":
     main()
