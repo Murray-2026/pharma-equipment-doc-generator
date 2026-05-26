@@ -43,40 +43,89 @@ def init_session():
         st.session_state.templates = load_data("templates", [])
     if "generated_docs" not in st.session_state:
         st.session_state.generated_docs = {"urs": "", "quotation": ""}
+    if "parsed_requirements" not in st.session_state:
+        st.session_state.parsed_requirements = []
 
 def parse_urs(text):
-    result = {
-        "equipment": [],
-        "specs": [],
-        "compliance": [],
-        "key_points": []
-    }
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    requirements = []
     
-    lines = text.split('\n')
-    for line in lines:
-        line = line.strip()
-        if not line: continue
-        
-        if '隔离器' in line:
-            if '负压' in line:
-                result['equipment'].append('单体负压隔离器')
-            elif '整线' in line:
-                result['equipment'].append('整线隔离器')
-            else:
-                result['equipment'].append('单体无菌隔离器')
-        if 'VHP' in line or '传递窗' in line:
-            result['equipment'].append('VHP传递窗')
-        
-        if 'GMP' in line or 'FDA' in line or 'EU' in line or 'WHO' in line or 'PIC/S' in line:
-            result['compliance'].append(line)
-        
-        if '要求' in line or '规格' in line or '尺寸' in line or '参数' in line:
-            result['key_points'].append(line)
+    for line_num, line in enumerate(lines, 1):
+        req = {
+            'number': line_num,
+            'text': line,
+            'category': classify_requirement(line),
+            'equipment_type': detect_equipment(line),
+            'compliance': detect_compliance(line),
+            'spec_value': extract_spec_value(line),
+            'status': 'pending'
+        }
+        requirements.append(req)
     
-    result['equipment'] = list(set(result['equipment']))
-    return result
+    st.session_state.parsed_requirements = requirements
+    return requirements
 
-def generate_urs_response():
+def classify_requirement(text):
+    text_lower = text.lower()
+    if '尺寸' in text or 'mm' in text or 'dimension' in text.lower():
+        return '结构尺寸'
+    if '洁净度' in text or 'ISO' in text or 'clean' in text_lower:
+        return '洁净等级'
+    if '灭菌' in text or 'VHP' in text or 'decontamination' in text_lower:
+        return '灭菌消毒'
+    if '手套' in text or 'glove' in text_lower:
+        return '操作组件'
+    if '压力' in text or 'pressure' in text_lower:
+        return '压力控制'
+    if 'GMP' in text or 'FDA' in text or '法规' in text or 'compliance' in text_lower:
+        return '法规合规'
+    if '材质' in text or 'material' in text_lower:
+        return '材质要求'
+    if '验证' in text or 'IQ' in text or 'OQ' in text or 'PQ' in text:
+        return '验证要求'
+    return '其他'
+
+def detect_equipment(text):
+    text_lower = text.lower()
+    if '负压' in text or 'negative pressure' in text_lower:
+        return '单体负压隔离器'
+    if '整线' in text or 'full line' in text_lower:
+        return '整线隔离器'
+    if 'VHP' in text or '传递窗' in text or 'pass-through' in text_lower:
+        return 'VHP传递窗'
+    if '隔离器' in text or 'isolator' in text_lower:
+        return '单体无菌隔离器'
+    return None
+
+def detect_compliance(text):
+    compliances = []
+    text_lower = text.lower()
+    if '中国GMP' in text or 'chinese gmp' in text_lower:
+        compliances.append('中国GMP')
+    if 'FDA' in text:
+        compliances.append('FDA 21 CFR')
+    if 'EU' in text or 'EU GMP' in text:
+        compliances.append('EU GMP Annex 1')
+    if 'WHO' in text:
+        compliances.append('WHO GMP')
+    if 'PIC/S' in text:
+        compliances.append('PIC/S')
+    return compliances
+
+def extract_spec_value(text):
+    import re
+    match = re.search(r'(\d+)\s*[×xX×]\s*(\d+)\s*[×xX×]\s*(\d+)', text)
+    if match:
+        return f"{match.group(1)}×{match.group(2)}×{match.group(3)}mm"
+    match = re.search(r'ISO\s*(\d+)', text)
+    if match:
+        return f"ISO {match.group(1)}级"
+    match = re.search(r'(\d+)-log', text)
+    if match:
+        return f"≥{match.group(1)}-log"
+    return None
+
+def generate_professional_urs_response():
     customer_name = st.session_state.get('customer_name', '')
     project_name = st.session_state.get('project_name', '')
     contact = st.session_state.get('contact', '')
@@ -84,10 +133,16 @@ def generate_urs_response():
     date = date_val.strftime('%Y-%m-%d') if hasattr(date_val, 'strftime') else str(date_val) if date_val else datetime.now().strftime('%Y-%m-%d')
     regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
     equipment = st.session_state.selected_equipment
-    key_points = st.session_state.key_params.split('\n') if st.session_state.key_params else []
+    requirements = st.session_state.parsed_requirements
+    
+    if not requirements:
+        requirements = [{'number': 1, 'text': '请先输入URS内容并点击智能解析', 'category': '其他', 'compliance': [], 'spec_value': None}]
+    
     reg_text = ', '.join(regulations) if regulations else '待确认'
+    eq_text = ', '.join(equipment) if equipment else '待确认'
     
     content = f"""# 用户需求说明（URS）逐条回复
+## User Requirement Specification — Point-by-Point Reply
 
 ---
 
@@ -97,21 +152,24 @@ def generate_urs_response():
 | 项目名称 | {project_name or '待填写'} |
 | 供应商 | XX隔离器技术有限公司 |
 | 日期 | {date} |
-| 设备类型 | {', '.join(equipment) if equipment else '待确认'} |
+| 设备类型 | {eq_text} |
 | 适用法规 | {reg_text} |
 
 ---
 
 ## URS逐条回复
 
-| 条款编号 | 客户需求原文 | 分类 | 回复 | 技术说明 | 法规依据 | 备注 |
-|----------|--------------|------|------|----------|----------|------|
+| 条款编号 | 客户需求原文 | 分类 | 我方响应 | 技术说明 | 法规依据 | 验证方式 | 备注 |
+|----------|--------------|------|----------|----------|----------|----------|------|
 """
     
-    for i, point in enumerate(key_points[:10] if key_points else ['请输入URS需求'], 1):
-        cat = classify_requirement(point)
-        tech_desc = generate_tech_desc(point)
-        content += f"""| URS-{str(i).zfill(3)} | {point.strip()} | {cat} | 满足 | {tech_desc} | {reg_text} | - |
+    for req in requirements:
+        response = generate_response(req)
+        tech_desc = generate_technical_description(req)
+        compliance = ', '.join(req['compliance']) if req['compliance'] else reg_text
+        validation = generate_validation_method(req)
+        
+        content += f"""| URS-{str(req['number']).zfill(3)} | {req['text']} | {req['category']} | {response} | {tech_desc} | {compliance} | {validation} | - |
 """
     
     content += f"""
@@ -119,34 +177,66 @@ def generate_urs_response():
 
 ## 合规声明
 
-我方保证所提供设备符合{reg_text}相关要求，并提供完整的验证文件包（IQ/OQ/PQ）。
+我方保证所提供的{eq_text}符合{reg_text}相关要求，并将提供完整的验证文件包。
 
 **回复单位**: XX隔离器技术有限公司  
 **技术负责人**: 待填写  
 **联系电话**: 待填写  
-**日期**: {date}"""
+**日期**: {date}
+"""
     
     return content
 
-def classify_requirement(text):
-    lower = text.lower()
-    if '尺寸' in text or 'mm' in text: return '结构尺寸'
-    if '洁净度' in text or 'ISO' in text: return '洁净等级'
-    if '灭菌' in text or 'VHP' in text: return '灭菌消毒'
-    if '手套' in text: return '操作组件'
-    if '压力' in text: return '压力控制'
-    if 'GMP' in text or '法规' in text: return '法规合规'
-    return '其他'
+def generate_response(req):
+    if req['category'] == '法规合规':
+        return '满足'
+    if req['spec_value']:
+        return '满足'
+    if '要求' in req['text'] or 'shall' in req['text'].lower():
+        return '满足'
+    return '满足'
 
-def generate_tech_desc(text):
-    if 'VHP' in text or '灭菌' in text:
-        return '采用VHP汽化过氧化氢灭菌技术，灭菌效果≥6-log SAL'
-    if 'ISO' in text or '洁净度' in text:
-        return '操作区洁净度达到ISO 5级，符合cGMP要求'
-    if '手套' in text:
-        return '配备进口丁腈手套及手套检漏系统'
-    return '本设备可完全满足客户该项需求，详见技术规格书'
+def generate_technical_description(req):
+    category = req['category']
+    
+    if category == '结构尺寸':
+        return f"设备尺寸设计为{req['spec_value'] or '符合客户要求的尺寸'}，采用模块化设计，便于安装和维护。"
+    if category == '洁净等级':
+        return f"操作区洁净度达到{req['spec_value'] or 'ISO 5级'}，符合cGMP对无菌生产环境的要求，配备高效HEPA过滤器。"
+    if category == '灭菌消毒':
+        return f"采用VHP汽化过氧化氢灭菌技术，灭菌效果{req['spec_value'] or '≥6-log SAL'}，残气经催化分解后<1ppm。"
+    if category == '操作组件':
+        return "配备进口丁腈手套，带手套检漏系统，确保操作过程的密闭性和安全性。"
+    if category == '压力控制':
+        return "采用正压/负压控制系统，确保操作区与外界的压力梯度，防止交叉污染。"
+    if category == '法规合规':
+        return "本设备设计符合相关法规要求，提供完整的合规文件包。"
+    if category == '材质要求':
+        return "与产品接触部分采用316L不锈钢材质，表面粗糙度Ra≤0.4μm，符合GMP要求。"
+    if category == '验证要求':
+        return "提供完整的IQ/OQ/PQ验证文件包，支持客户进行验证确认。"
+    
+    return "本设备可完全满足客户该项需求，具体技术方案详见技术规格书。"
 
+def generate_validation_method(req):
+    category = req['category']
+    
+    if category == '结构尺寸':
+        return 'IQ/OQ'
+    if category == '洁净等级':
+        return 'IQ/OQ/PQ'
+    if category == '灭菌消毒':
+        return 'IQ/OQ/PQ'
+    if category == '操作组件':
+        return 'IQ/OQ'
+    if category == '压力控制':
+        return 'IQ/OQ'
+    if category == '材质要求':
+        return 'IQ'
+    if category == '验证要求':
+        return 'IQ/OQ/PQ'
+    
+    return 'IQ/OQ/PQ'
 
 def generate_quotation():
     customer_name = st.session_state.get('customer_name', '')
@@ -170,16 +260,15 @@ def generate_quotation():
     base_price = (price_range[0] + price_range[1]) / 2
     
     content = f"""# 快速报价单
+## Quick Quotation
 
 ---
-
-## 报价单信息
 
 | 项目 | 内容 |
 |------|------|
 | 报价编号 | QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]} |
 | 日期 | {date} |
-| 有效期至 | 30天内 |
+| 有效期至 | 30天 |
 | 客户名称 | {customer_name or '待填写'} |
 | 项目名称 | {project_name or '待填写'} |
 | 供应商 | XX隔离器技术有限公司 |
@@ -195,58 +284,67 @@ def generate_quotation():
 
 ## B. 关键技术参数
 
-| 参数项目 | 标准配置 | 高级配置 |
-|----------|----------|----------|
-| 灭菌效果 | SAL 10⁻⁶ | SAL 10⁻⁶ |
-| 残气浓度 | <1ppm | <1ppm |
-| 内壁材质 | 316L不锈钢 | 316L不锈钢 |
-| 控制系统 | PLC+触摸屏 | PLC+SCADA |
-| 数据记录 | 自动记录 | 审计追踪 |
+| 参数项目 | 经济型 | 标准型 | 高端型 |
+|----------|--------|--------|--------|
+| 灭菌效果 | SAL 10⁻⁶ | SAL 10⁻⁶ | SAL 10⁻⁶ |
+| 残气浓度 | <1ppm | <1ppm | <1ppm |
+| 内壁材质 | 316L不锈钢 | 316L不锈钢 | 316L不锈钢 |
+| 控制系统 | PLC+7"触摸屏 | PLC+7"触摸屏 | PLC+SCADA+10"触摸屏 |
+| 数据记录 | 自动记录 | 自动记录 | 审计追踪记录 |
+| 双门互锁 | 机械+电气 | 机械+电气 | 机械+PLC三重 |
 
 ## C. 报价明细（{budget}方案）
 
 | 序号 | 项目 | 金额（万元） | 备注 |
 |------|------|--------------|------|
-| 1 | 设备本体 | {base_price * 0.7:.1f} | 含主体结构、手套、视窗等 |
-| 2 | 安装调试 | {base_price * 0.08:.1f} | 含现场安装、调试 |
-| 3 | 验证服务 | {base_price * 0.1:.1f} | 含IQ/OQ/PQ验证 |
-| 4 | 技术培训 | {base_price * 0.02:.1f} | {3 if budget == '标准型' else 5}天培训 |
-| 5 | 备件包 | {base_price * 0.02:.1f} | 首年备件 |
-| 6 | 运输保险 | {base_price * 0.08:.1f} | 国内运输+保险 |
-| **7** | **合计** | **{base_price:.1f}** | 含13%增值税 |
+| 1 | 设备本体 | {base_price * 0.7:.1f} | 含主体结构、手套、视窗、VHP发生器 |
+| 2 | 安装调试 | {base_price * 0.08:.1f} | 含现场安装、调试、开机验证 |
+| 3 | 验证服务（IQ/OQ/PQ） | {base_price * 0.1:.1f} | 含验证方案编制及执行 |
+| 4 | 技术培训 | {base_price * 0.02:.1f} | {3 if budget == '经济型' else 5}天（操作+维护{'+验证' if budget == '高端型' else ''}） |
+| 5 | 备件包（首年） | {base_price * 0.02:.1f} | 易损件及推荐备件 |
+| 6 | 技术文件包 | {base_price * 0.02:.1f} | 含手册、图纸、证书 |
+| 7 | 国内运输+保险 | {base_price * 0.06:.1f} | 含运输一切险 |
+| **8** | **合计** | **{base_price:.1f}** | 含13%增值税 |
 
 ## D. 配置清单
 
-| 序号 | 项目 | 数量 |
-|------|------|------|
-| 1 | {eq}主机系统 | 1台 |
-| 2 | HEPA过滤器（H14级） | 2个 |
-| 3 | 备用手套（丁腈） | 2副 |
-| 4 | 专用工具包 | 1套 |
-| 5 | 操作手册 | 1份 |
-| 6 | 验证文件包 | 1份 |
+| 序号 | 项目 | 数量 | 备注 |
+|------|------|------|------|
+| 1 | {eq}主机系统 | 1台 | 含舱体、门系统、互锁装置 |
+| 2 | HEPA过滤器（H14级） | 2个 | 进风+排风 |
+| 3 | 备用手套（丁腈） | 2副 | 进口材质 |
+| 4 | VHP发生器 | 1套 | 集成式 |
+| 5 | 专用工具包 | 1套 | 维护工具 |
+| 6 | 操作手册 | 1份 | 中文/英文 |
+| 7 | 验证文件包 | 1份 | IQ/OQ/PQ方案 |
 
 ## E. 交货周期
 
 | 方案 | 预计周期 | 说明 |
 |------|----------|------|
-| {budget}方案 | {16 if budget == '标准型' else 20}-28周 | 自预付款到账之日起 |
+| 经济型 | 12-16周 | 自预付款到账之日起 |
+| 标准型 | 16-20周 | 自预付款到账之日起 |
+| 高端型 | 20-28周 | 含系统集成交付与调试时间 |
 
 ## F. 售后服务条款
 
-| 项目 | 标准方案 | 高级方案 |
-|------|----------|----------|
-| 质保期 | 12个月 | 24个月 |
-| 远程响应 | 48小时 | 24小时 |
-| 现场响应 | 48小时 | 24小时 |
-| 年度保养 | 1次/年 | 2次/年 |
+| 项目 | 经济型 | 标准型 | 高端型 |
+|------|--------|--------|--------|
+| 质保期 | 12个月 | 12个月 | 24个月 |
+| 远程响应时间 | 48小时 | 24小时 | 24小时 |
+| 现场响应时间 | 72小时 | 48小时 | 24小时 |
+| 年度保养 | 1次/年 | 1次/年 | 2次/年 |
+| 软件升级 | 质保期内免费 | 质保期内免费 | 质保期内免费+质保期后3年优惠 |
+| 设备备件供应 | 设备停产10年 | 设备停产10年 | 设备停产10年 |
 
 ---
 
 ## 声明
 
 1. 本报价有效期为30天，逾期价格可能调整
-2. 最终价格以双方签订的正式合同为准
+2. 本报价不含土建、公用工程接口以外的工作
+3. 最终价格以双方签订的正式合同为准
+4. 如客户有重大变更，供应商保留调整报价的权利
 
 **报价单位**: XX隔离器技术有限公司  
 **联系人**: {contact or '待填写'}  
@@ -257,12 +355,50 @@ def generate_quotation():
 
 def equipment_desc(eq):
     descs = {
-        '单体无菌隔离器': '无菌分装、无菌检测、称量操作的理想选择，正压运行，ISO 5级洁净度。',
-        'VHP传递窗': '物料/工具VHP灭菌传递，双门互锁，灭菌效果≥6-log。',
-        '整线隔离器': '灌装+轧盖+称重全线隔离，适用于无菌制剂生产线。',
-        '单体负压隔离器': '有毒/高活性药品OEL防护，负压运行，OEL控制<1μg/m³。'
+        '单体无菌隔离器': '无菌分装、无菌检测、称量操作的理想选择，正压运行，ISO 5级洁净度，配备VHP灭菌系统。',
+        'VHP传递窗': '物料/工具VHP灭菌传递，双门互锁设计，灭菌效果≥6-log SAL，残气<1ppm，适用于洁净区物料传递。',
+        '整线隔离器': '灌装+轧盖+称重全线隔离系统，适用于无菌制剂生产线，集成式设计，提高生产效率和产品质量。',
+        '单体负压隔离器': '有毒/高活性药品OEL防护专用，负压运行，OEL控制<1μg/m³，双重HEPA过滤，BIBO更换系统。'
     }
     return descs.get(eq, '')
+
+def validate_urs_response():
+    checks = []
+    
+    if not st.session_state.get('customer_name'):
+        checks.append({'item': '客户名称', 'status': '缺失', 'level': 'warning'})
+    else:
+        checks.append({'item': '客户名称', 'status': '已填写', 'level': 'ok'})
+    
+    if not st.session_state.get('project_name'):
+        checks.append({'item': '项目名称', 'status': '缺失', 'level': 'warning'})
+    else:
+        checks.append({'item': '项目名称', 'status': '已填写', 'level': 'ok'})
+    
+    if not st.session_state.selected_equipment:
+        checks.append({'item': '设备类型', 'status': '未选择', 'level': 'warning'})
+    else:
+        checks.append({'item': '设备类型', 'status': f'已选择: {", ".join(st.session_state.selected_equipment)}', 'level': 'ok'})
+    
+    regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
+    if not regulations:
+        checks.append({'item': '适用法规', 'status': '未选择', 'level': 'error'})
+    else:
+        checks.append({'item': '适用法规', 'status': f'已选择: {len(regulations)}项', 'level': 'ok'})
+    
+    if not st.session_state.urs_text.strip():
+        checks.append({'item': 'URS内容', 'status': '未输入', 'level': 'error'})
+    else:
+        lines = [l for l in st.session_state.urs_text.split('\n') if l.strip()]
+        checks.append({'item': 'URS内容', 'status': f'共{len(lines)}条需求', 'level': 'ok'})
+    
+    if st.session_state.parsed_requirements:
+        categories = {}
+        for req in st.session_state.parsed_requirements:
+            categories[req['category']] = categories.get(req['category'], 0) + 1
+        checks.append({'item': '需求分类', 'status': f'{len(categories)}个类别: {", ".join(categories.keys())}', 'level': 'ok'})
+    
+    return checks
 
 def main():
     init_session()
@@ -271,6 +407,7 @@ def main():
     
     with col1:
         st.markdown("### 📋 客户基本信息")
+        
         st.text_input("客户公司名称", key="customer_name")
         st.text_input("项目名称", key="project_name")
         
@@ -288,14 +425,12 @@ def main():
         st.markdown("---")
         st.markdown("### 📝 客户URS/询盘输入")
         st.text_area("请粘贴客户URS内容...", height=150, key="urs_text",
-                     placeholder="1. 设备需满足无菌隔离要求，正压运行\n2. 操作区洁净度ISO 5级\n3. VHP灭菌，灭菌效果≥6-log")
+                     placeholder="1. 设备需满足无菌隔离要求，正压运行\n2. 操作区洁净度ISO 5级\n3. VHP灭菌，灭菌效果≥6-log\n4. 配备手套检漏系统\n5. 操作区尺寸不小于L1200×D800×H900mm\n6. 需满足中国GMP及EU GMP Annex 1要求")
         
         row2 = st.columns(3)
         if row2[0].button("🔍 智能解析"):
-            parsed = parse_urs(st.session_state.urs_text)
-            st.session_state.selected_equipment = parsed['equipment']
-            st.session_state.key_params = '\n'.join(parsed['key_points'])
-            st.success(f"解析完成！识别到: {', '.join(parsed['equipment'])}")
+            parse_urs(st.session_state.urs_text)
+            st.success(f"✅ 解析完成！识别到{len(st.session_state.parsed_requirements)}条需求")
         
         if row2[1].button("📄 加载示例"):
             st.session_state.urs_text = """1. VHP灭菌传递窗，双门互锁
@@ -303,12 +438,14 @@ def main():
 3. 灭菌效果≥6-log SAL
 4. VHP残气排除至<1ppm
 5. 内腔尺寸不小于L800×W800×H900mm
-6. 需满足中国GMP及EU GMP Annex 1要求"""
+6. 需满足中国GMP及EU GMP Annex 1要求
+7. 提供完整的IQ/OQ/PQ验证文件包"""
         
         if row2[2].button("🗑 清空"):
             st.session_state.urs_text = ""
             st.session_state.selected_equipment = []
             st.session_state.key_params = ""
+            st.session_state.parsed_requirements = []
         
         with st.expander("⚙️ 手动调整", expanded=True):
             st.markdown("**设备类型确认/修正（可多选）**")
@@ -322,6 +459,18 @@ def main():
             
             st.selectbox("预算级别", ['经济型', '标准型', '高端型'], key="budget_level")
             st.selectbox("语言", ['中文', 'English', '中英双语'], key="language")
+        
+        st.markdown("---")
+        st.markdown("### ✅ 自检")
+        if st.button("🔍 运行自检"):
+            checks = validate_urs_response()
+            for check in checks:
+                if check['level'] == 'ok':
+                    st.success(f"✅ {check['item']}: {check['status']}")
+                elif check['level'] == 'warning':
+                    st.warning(f"⚠️ {check['item']}: {check['status']}")
+                else:
+                    st.error(f"❌ {check['item']}: {check['status']}")
         
         st.markdown("---")
         st.markdown("### 💾 保存与加载")
@@ -366,7 +515,7 @@ def main():
                 st.info("暂无客户记录")
         
         if st.button("🚀 生成文档（URS回复 + 快速报价）", use_container_width=True, type="primary"):
-            st.session_state.generated_docs['urs'] = generate_urs_response()
+            st.session_state.generated_docs['urs'] = generate_professional_urs_response()
             st.session_state.generated_docs['quotation'] = generate_quotation()
             st.success("文档生成成功！")
     
