@@ -85,41 +85,41 @@ def generate_urs_response():
     regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
     equipment = st.session_state.selected_equipment
     key_points = st.session_state.key_params.split('\n') if st.session_state.key_params else []
+    reg_text = ', '.join(regulations) if regulations else '待确认'
     
     content = f"""# 用户需求说明（URS）逐条回复
 
-**客户名称**: {customer_name or '待填写'}  
-**项目名称**: {project_name or '待填写'}  
-**联系人**: {contact or '待填写'}  
-**日期**: {date}  
-**设备类型**: {', '.join(equipment) if equipment else '待确认'}  
-**适用法规**: {', '.join(regulations) if regulations else '待确认'}
+---
+
+| 项目 | 内容 |
+|------|------|
+| 客户名称 | {customer_name or '待填写'} |
+| 项目名称 | {project_name or '待填写'} |
+| 供应商 | XX隔离器技术有限公司 |
+| 日期 | {date} |
+| 设备类型 | {', '.join(equipment) if equipment else '待确认'} |
+| 适用法规 | {reg_text} |
 
 ---
 
-## 一、概述
+## URS逐条回复
 
-本回复文档针对贵公司提出的设备需求进行逐条响应，确保方案符合相关法规要求。
-
-## 二、URS逐条回复
-
+| 条款编号 | 客户需求原文 | 分类 | 回复 | 技术说明 | 法规依据 | 备注 |
+|----------|--------------|------|------|----------|----------|------|
 """
     
     for i, point in enumerate(key_points[:10] if key_points else ['请输入URS需求'], 1):
-        content += f"""### URS-{str(i).zfill(3)} {point}
-
-**回复**: 满足  
-**技术说明**: 本设备可完全满足客户该项需求，具体技术方案详见技术规格书。  
-**法规依据**: 符合{', '.join(regulations)}相关要求。  
-**验证方式**: IQ/OQ/PQ
-
+        cat = classify_requirement(point)
+        tech_desc = generate_tech_desc(point)
+        content += f"""| URS-{str(i).zfill(3)} | {point.strip()} | {cat} | 满足 | {tech_desc} | {reg_text} | - |
 """
     
-    content += f"""## 三、合规声明
-
-我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
-
+    content += f"""
 ---
+
+## 合规声明
+
+我方保证所提供设备符合{reg_text}相关要求，并提供完整的验证文件包（IQ/OQ/PQ）。
 
 **回复单位**: XX隔离器技术有限公司  
 **技术负责人**: 待填写  
@@ -127,6 +127,26 @@ def generate_urs_response():
 **日期**: {date}"""
     
     return content
+
+def classify_requirement(text):
+    lower = text.lower()
+    if '尺寸' in text or 'mm' in text: return '结构尺寸'
+    if '洁净度' in text or 'ISO' in text: return '洁净等级'
+    if '灭菌' in text or 'VHP' in text: return '灭菌消毒'
+    if '手套' in text: return '操作组件'
+    if '压力' in text: return '压力控制'
+    if 'GMP' in text or '法规' in text: return '法规合规'
+    return '其他'
+
+def generate_tech_desc(text):
+    if 'VHP' in text or '灭菌' in text:
+        return '采用VHP汽化过氧化氢灭菌技术，灭菌效果≥6-log SAL'
+    if 'ISO' in text or '洁净度' in text:
+        return '操作区洁净度达到ISO 5级，符合cGMP要求'
+    if '手套' in text:
+        return '配备进口丁腈手套及手套检漏系统'
+    return '本设备可完全满足客户该项需求，详见技术规格书'
+
 
 def generate_quotation():
     customer_name = st.session_state.get('customer_name', '')
@@ -147,17 +167,25 @@ def generate_quotation():
     
     eq = equipment[0] if equipment else '单体无菌隔离器'
     price_range = prices[eq][budget]
+    base_price = (price_range[0] + price_range[1]) / 2
     
     content = f"""# 快速报价单
 
-**报价编号**: QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]}  
-**日期**: {date}  
-**有效期**: 30天  
-**客户名称**: {customer_name or '待填写'}  
-**项目名称**: {project_name or '待填写'}  
-**设备类型**: {eq}  
-**配置等级**: {budget}  
-**适用法规**: {', '.join(regulations)}
+---
+
+## 报价单信息
+
+| 项目 | 内容 |
+|------|------|
+| 报价编号 | QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]} |
+| 日期 | {date} |
+| 有效期至 | 30天内 |
+| 客户名称 | {customer_name or '待填写'} |
+| 项目名称 | {project_name or '待填写'} |
+| 供应商 | XX隔离器技术有限公司 |
+| 设备类型 | {eq} |
+| 配置等级 | {budget} |
+| 适用法规 | {', '.join(regulations)} |
 
 ---
 
@@ -167,39 +195,60 @@ def generate_quotation():
 
 ## B. 关键技术参数
 
-| 参数 | 配置 |
-|------|------|
-| 灭菌效果 | SAL 10⁻⁶ |
-| 残气浓度 | <1ppm |
-| 材质 | 316L不锈钢 |
+| 参数项目 | 标准配置 | 高级配置 |
+|----------|----------|----------|
+| 灭菌效果 | SAL 10⁻⁶ | SAL 10⁻⁶ |
+| 残气浓度 | <1ppm | <1ppm |
+| 内壁材质 | 316L不锈钢 | 316L不锈钢 |
+| 控制系统 | PLC+触摸屏 | PLC+SCADA |
+| 数据记录 | 自动记录 | 审计追踪 |
 
-## C. 报价明细
+## C. 报价明细（{budget}方案）
 
-| 项目 | 金额（万元） |
-|------|--------------|
-| 设备本体 | {price_range[0]} - {price_range[1]} |
-| 安装调试 | 含 |
-| 验证服务 | 含 |
-| 技术培训 | 含 |
-| **总计** | **{price_range[0]} - {price_range[1]}** |
+| 序号 | 项目 | 金额（万元） | 备注 |
+|------|------|--------------|------|
+| 1 | 设备本体 | {base_price * 0.7:.1f} | 含主体结构、手套、视窗等 |
+| 2 | 安装调试 | {base_price * 0.08:.1f} | 含现场安装、调试 |
+| 3 | 验证服务 | {base_price * 0.1:.1f} | 含IQ/OQ/PQ验证 |
+| 4 | 技术培训 | {base_price * 0.02:.1f} | {3 if budget == '标准型' else 5}天培训 |
+| 5 | 备件包 | {base_price * 0.02:.1f} | 首年备件 |
+| 6 | 运输保险 | {base_price * 0.08:.1f} | 国内运输+保险 |
+| **7** | **合计** | **{base_price:.1f}** | 含13%增值税 |
 
 ## D. 配置清单
 
-- 主机系统 ×1
-- HEPA过滤器 ×2
-- 备用手套 ×2副
-- 验证文件包 ×1
+| 序号 | 项目 | 数量 |
+|------|------|------|
+| 1 | {eq}主机系统 | 1台 |
+| 2 | HEPA过滤器（H14级） | 2个 |
+| 3 | 备用手套（丁腈） | 2副 |
+| 4 | 专用工具包 | 1套 |
+| 5 | 操作手册 | 1份 |
+| 6 | 验证文件包 | 1份 |
 
-## E. 售后服务
+## E. 交货周期
 
-| 项目 | 内容 |
-|------|------|
-| 质保期 | 12个月 |
-| 响应时间 | 48小时 |
+| 方案 | 预计周期 | 说明 |
+|------|----------|------|
+| {budget}方案 | {16 if budget == '标准型' else 20}-28周 | 自预付款到账之日起 |
+
+## F. 售后服务条款
+
+| 项目 | 标准方案 | 高级方案 |
+|------|----------|----------|
+| 质保期 | 12个月 | 24个月 |
+| 远程响应 | 48小时 | 24小时 |
+| 现场响应 | 48小时 | 24小时 |
+| 年度保养 | 1次/年 | 2次/年 |
 
 ---
 
-**供应商**: XX隔离器技术有限公司  
+## 声明
+
+1. 本报价有效期为30天，逾期价格可能调整
+2. 最终价格以双方签订的正式合同为准
+
+**报价单位**: XX隔离器技术有限公司  
 **联系人**: {contact or '待填写'}  
 **日期**: {date}
 """
