@@ -2,13 +2,16 @@ from datetime import datetime
 
 
 class TemplateManager:
-    def __init__(self, equipment_type, regulation):
+    def __init__(self, equipment_type, regulation, regulations_list=None):
         self.equipment_type = equipment_type
         self.regulation = regulation
+        self.regulations_list = regulations_list or [regulation]
         self.current_date = datetime.now().strftime("%Y年%m月%d日")
         self.doc_number_prefix = "PHARMA-DOC"
     
     def get_urs_response_template(self, requirements=None):
+        regulation_list_str = "\n".join([f"- ✅ {reg}" for reg in self.regulations_list])
+        
         template = f"""# {self.equipment_type} - 用户需求说明（URS）逐条响应
 
 **文档编号**: {self.doc_number_prefix}-URS-{datetime.now().strftime("%Y%m%d")}
@@ -22,7 +25,8 @@ class TemplateManager:
 ## 1. 概述
 
 ### 1.1 项目背景
-本回复文档针对贵公司提出的{self.equipment_type}用户需求说明（URS）进行逐条响应。我们高度重视此次合作机会，确保提供的方案完全满足贵公司的技术要求，并符合{self.regulation}相关法规要求。
+本回复文档针对贵公司提出的{self.equipment_type}用户需求说明（URS）进行逐条响应。我们高度重视此次合作机会，确保提供的方案完全满足贵公司的技术要求，并符合以下法规要求：
+{regulation_list_str}
 
 ### 1.2 响应说明
 本文件采用逐条响应方式，对URS中的每个需求点进行详细说明，包括：
@@ -32,7 +36,7 @@ class TemplateManager:
 - 相关备注信息
 
 ### 1.3 合规声明
-我方保证所提供的设备和方案完全符合{self.regulation}及相关法规要求，并将提供完整的验证文档支持设备验证活动。
+我方保证所提供的设备和方案完全符合上述法规要求，并将提供完整的验证文档支持设备验证活动。
 
 ---
 
@@ -42,7 +46,7 @@ class TemplateManager:
 
 | URS编号 | URS要求 | 我方响应 | 符合性 | 验证方式 | 备注 |
 |---------|---------|----------|--------|----------|------|
-| URS-001 | 设备应符合现行GMP要求 | 我方设备完全符合{self.regulation}要求，设计遵循GMP基本原则，确保产品质量和患者安全 | ✅ 完全符合 | IQ/OQ/PQ | - |
+| URS-001 | 设备应符合现行GMP要求 | 我方设备完全符合所选法规要求，设计遵循GMP基本原则，确保产品质量和患者安全 | ✅ 完全符合 | IQ/OQ/PQ | - |
 | URS-002 | 设备应具备必要的安全防护装置 | 设备配备完整的安全联锁系统，包括门联锁、压力监测、紧急停机按钮等，确保操作人员安全 | ✅ 完全符合 | IQ/OQ | - |
 | URS-003 | 设备材料应符合医药级要求 | 与产品接触部分采用316L不锈钢（符合ASTM A240标准），表面粗糙度Ra≤0.8μm，符合GMP材质要求 | ✅ 完全符合 | IQ | 提供材质证明 |
 | URS-004 | 设备应易于清洁和消毒 | 设备设计考虑CIP/SIP需求，无卫生死角，表面光滑易于清洁，符合洁净室卫生要求 | ✅ 完全符合 | IQ/OQ | - |
@@ -113,10 +117,7 @@ class TemplateManager:
 | SIP | Sterilize In Place | 在线灭菌 |
 
 ### B. 合规标准清单
-- {self.regulation}
-- ISO 14644（洁净室及相关受控环境）
-- ISO 13485（医疗器械质量管理体系）
-- GAMP 5（良好自动化生产规范）
+{regulation_list_str}
 
 ---
 
@@ -139,7 +140,7 @@ class TemplateManager:
         key_points = requirements.get("key_points", [])[:10]
         for i, point in enumerate(key_points, 100):
             response_text = self._generate_response(point)
-            response += f"| URS-{i:03d} | {point[:50]}... | {response_text[:40]}... | ✅ 完全符合 | IQ/OQ/PQ | 根据{self.regulation}要求设计 |\n"
+            response += f"| URS-{i:03d} | {point[:50]}... | {response_text[:40]}... | ✅ 完全符合 | IQ/OQ/PQ | 根据所选法规要求设计 |\n"
         
         if not key_points:
             response = ""
@@ -158,6 +159,7 @@ class TemplateManager:
             "FDA": "设备设计符合FDA 21 CFR Part 11要求，支持电子记录和电子签名功能。",
             "EU GMP": "符合EU GMP Annex 1要求，适用于无菌药品生产，满足药品质量规范。",
             "PIC/S": "符合PIC/S GMP要求，支持国际多场地生产认证，确保全球合规。",
+            "ISO": "符合ISO 14644标准要求，确保洁净环境控制符合国际标准。",
             "尺寸": "可根据客户需求定制设备尺寸，标准型号覆盖各种生产规模，确保满足生产工艺要求。",
             "参数": "设备关键参数可根据工艺需求进行调整和配置，提供灵活的解决方案。",
         }
@@ -169,6 +171,8 @@ class TemplateManager:
         return "我方将根据客户需求提供相应的技术解决方案。"
     
     def get_technical_spec_template(self):
+        regulation_list_str = "\n".join([f"- ✅ {reg}" for reg in self.regulations_list])
+        
         template = f"""# {self.equipment_type} - 技术方案
 
 **文档编号**: {self.doc_number_prefix}-TECH-{datetime.now().strftime("%Y%m%d")}
@@ -192,7 +196,7 @@ class TemplateManager:
 - 高活性药物处理
 
 ### 1.3 设计依据
-- {self.regulation}
+{regulation_list_str}
 - ISO 14644-1:2015 《洁净室及相关受控环境 - 第1部分：空气洁净度等级》
 - ISO 14644-7:2019 《洁净室及相关受控环境 - 第7部分：隔离装置》
 - GAMP 5 《良好自动化生产规范》
@@ -254,7 +258,7 @@ class TemplateManager:
 
 ### 4.1 法规符合声明
 本设备完全符合以下法规要求：
-- ✅ {self.regulation}
+{regulation_list_str}
 - ✅ ISO 14644（洁净室及相关受控环境）
 - ✅ ISO 13485（医疗器械质量管理体系）
 - ✅ GAMP 5（良好自动化生产规范）
@@ -425,7 +429,7 @@ class TemplateManager:
     
     def _get_equipment_description(self):
         descriptions = {
-            "单体无菌隔离器": "本单体无菌隔离器是专为药品生产、生物制品制备等无菌操作环境设计的高端设备。采用先进的隔离技术，为操作人员和产品提供双向保护，确保生产过程的无菌性和安全性。设备符合{self.regulation}要求，适用于ISO 5级（A级）洁净环境。",
+            "单体无菌隔离器": f"本单体无菌隔离器是专为药品生产、生物制品制备等无菌操作环境设计的高端设备。采用先进的隔离技术，为操作人员和产品提供双向保护，确保生产过程的无菌性和安全性。设备符合{self.regulation}要求，适用于ISO 5级（A级）洁净环境。",
             "VHP传递窗": "本VHP（汽化过氧化氢）传递窗是用于洁净区与非洁净区之间物品传递的专用设备。内置VHP灭菌系统，可对传递物品进行高效的生物去污处理（6-log灭菌效率），确保交叉污染的有效控制，符合GMP要求。",
             "整线隔离器": "本整线隔离器系统集成了无菌隔离器、传递窗、灌装机、轧盖机等设备，形成完整的无菌生产线。广泛应用于生物制品、注射剂等产品的无菌生产过程，支持全流程自动化控制，符合国际制药行业标准。",
             "单体负压隔离器": "本单体负压隔离器主要用于高活性药物、细胞毒性药物等特殊产品的处理。通过负压控制技术（-10至-20Pa），有效防止有害物质泄漏，保护操作人员和环境安全。配备袋进袋出（BIBO）过滤系统，符合高活性产品处理要求。"

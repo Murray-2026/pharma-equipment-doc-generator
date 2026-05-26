@@ -20,6 +20,13 @@ def read_docx(file):
     return text
 
 
+def read_excel(file):
+    import pandas as pd
+    df = pd.read_excel(file)
+    text = df.to_string(index=False)
+    return text
+
+
 def read_text(file):
     return file.read().decode("utf-8")
 
@@ -110,7 +117,7 @@ def extract_requirements(text):
         if re.search(r'(规格|尺寸|参数|spec|specification|dimension|size)', line_lower):
             requirements["specifications"].append(line)
         
-        if re.search(r'(GMP|FDA|EU|PIC/S|合规|compliance|regulation)', line_lower):
+        if re.search(r'(GMP|FDA|EU|PIC/S|ISO|合规|compliance|regulation)', line_lower):
             requirements["compliance"].append(line)
         
         if re.search(r'(要求|需求|必须|应|shall|should|must|need|require)', line_lower):
@@ -128,6 +135,8 @@ def parse_uploaded_file(uploaded_file):
         text = read_pdf(uploaded_file)
     elif file_type in ["docx", "doc"]:
         text = read_docx(uploaded_file)
+    elif file_type in ["xlsx", "xls"]:
+        text = read_excel(uploaded_file)
     elif file_type == "txt":
         text = read_text(uploaded_file)
     else:

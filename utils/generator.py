@@ -7,10 +7,11 @@ import os
 
 
 class DocumentGenerator:
-    def __init__(self, equipment_type, regulation, custom_templates=None):
-        self.template_manager = TemplateManager(equipment_type, regulation)
+    def __init__(self, equipment_type, regulation, custom_templates=None, regulations_list=None):
+        self.template_manager = TemplateManager(equipment_type, regulation, regulations_list)
         self.equipment_type = equipment_type
         self.regulation = regulation
+        self.regulations_list = regulations_list or [regulation]
         self.custom_templates = custom_templates or {}
     
     def generate_urs_response(self, requirements=None):
@@ -23,7 +24,8 @@ class DocumentGenerator:
     
     def generate_detailed_urs_response(self, requirements):
         content = f"# {self.equipment_type} - URS逐条回复\n\n"
-        content += f"**文档编号**: URS-RESP-{datetime.now().strftime('%Y%m%d')}\n"
+        content += f"**文档编号**: PHARMA-DOC-URS-{datetime.now().strftime('%Y%m%d')}\n"
+        content += f"**版本**: V1.0\n"
         content += f"**生成日期**: {datetime.now().strftime('%Y年%m月%d日')}\n"
         content += f"**适用法规**: {self.regulation}\n"
         content += f"**URS来源**: 客户提供的用户需求说明\n\n"
@@ -31,7 +33,11 @@ class DocumentGenerator:
         
         content += "## 1. 概述\n\n"
         content += "### 1.1 项目背景\n"
-        content += f"本回复文档针对贵公司提出的{self.equipment_type}用户需求说明（URS）进行逐条响应，确保我们的方案完全满足贵公司的技术要求，并符合{self.regulation}相关法规要求。\n\n"
+        content += f"本回复文档针对贵公司提出的{self.equipment_type}用户需求说明（URS）进行逐条响应，确保我们的方案完全满足贵公司的技术要求，并符合以下法规要求：\n"
+        for reg in self.regulations_list:
+            content += f"- ✅ {reg}\n"
+        content += "\n"
+        
         content += "### 1.2 回复说明\n"
         content += "本文件采用逐条响应方式，对URS中的每个需求点进行详细说明，包括技术方案、合规性确认及相关备注信息。\n\n"
         content += "---\n\n"
@@ -47,7 +53,7 @@ class DocumentGenerator:
                 content += f"### {item['item_number']} 需求描述\n"
                 content += f"{item['text']}\n\n"
                 content += f"**我方响应**: {self.generate_response_for_requirement(item['text'])}\n\n"
-                content += f"**合规状态**: ✅ 符合{self.regulation}要求\n\n"
+                content += f"**合规状态**: ✅ 符合所选法规要求\n\n"
                 content += f"**验证方式**: 将在IQ/OQ/PQ验证中予以确认\n\n"
                 content += "---\n\n"
         
@@ -59,6 +65,7 @@ class DocumentGenerator:
         content += "## 附录\n\n"
         content += "### 术语说明\n"
         content += "- **URS**: 用户需求说明 (User Requirements Specification)\n"
+        content += "- **DQ**: 设计确认 (Design Qualification)\n"
         content += "- **IQ**: 安装确认 (Installation Qualification)\n"
         content += "- **OQ**: 运行确认 (Operational Qualification)\n"
         content += "- **PQ**: 性能确认 (Performance Qualification)\n\n"
@@ -73,6 +80,7 @@ class DocumentGenerator:
         placeholders = {
             "{equipment_type}": self.equipment_type,
             "{regulation}": self.regulation,
+            "{regulations}": "\n".join([f"- {reg}" for reg in self.regulations_list]),
             "{date}": datetime.now().strftime("%Y年%m月%d日"),
             "{doc_number}": f"{template_type.upper()}-{datetime.now().strftime('%Y%m%d')}",
             "{year}": str(datetime.now().year),
@@ -99,6 +107,7 @@ class DocumentGenerator:
             "FDA": "设备设计符合FDA 21 CFR Part 11要求，支持电子记录和电子签名功能。",
             "EU GMP": "符合EU GMP Annex 1要求，适用于无菌药品生产，满足药品质量规范。",
             "PIC/S": "符合PIC/S GMP要求，支持国际多场地生产认证，确保全球合规。",
+            "ISO": "符合ISO 14644标准要求，确保洁净环境控制符合国际标准。",
             "尺寸": "可根据客户需求定制设备尺寸，标准型号覆盖各种生产规模，确保满足生产工艺要求。",
             "参数": "设备关键参数可根据工艺需求进行调整和配置，提供灵活的解决方案。",
             "要求": "我方完全理解并满足客户提出的各项技术要求，确保方案的完整性和可行性。",

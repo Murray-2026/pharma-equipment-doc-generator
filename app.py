@@ -40,15 +40,18 @@ def main():
         index=0
     )
     
-    st.sidebar.subheader("法规标准")
-    regulation = st.sidebar.selectbox(
-        "选择目标法规",
-        ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "PIC/S GMP"],
-        index=0
+    st.sidebar.subheader("法规标准（可多选）")
+    regulations = st.sidebar.multiselect(
+        "选择适用的法规标准",
+        ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "PIC/S GMP", "ISO 14644", "GAMP 5"],
+        default=["中国GMP 2010版"],
+        help="可以选择多个法规标准，生成的文档将涵盖所有选中的合规要求"
     )
     
+    regulation_text = ", ".join(regulations) if regulations else "中国GMP 2010版"
+    
     st.sidebar.subheader("📁 自定义模板")
-    st.sidebar.markdown("上传您自己的文档模板（支持Word/Markdown格式）")
+    st.sidebar.markdown("上传您自己的文档模板（支持Excel/Word/Markdown格式）")
     
     template_type = st.sidebar.selectbox(
         "选择模板类型",
@@ -57,7 +60,7 @@ def main():
     
     uploaded_template = st.sidebar.file_uploader(
         "上传自定义模板",
-        type=["docx", "md", "txt"]
+        type=["xlsx", "xls", "docx", "md", "txt"]
     )
     
     if uploaded_template is not None:
@@ -67,7 +70,11 @@ def main():
             "报价单模板": "quotation"
         }[template_type]
         
-        if uploaded_template.name.endswith(".docx"):
+        if uploaded_template.name.endswith((".xlsx", ".xls")):
+            import pandas as pd
+            df = pd.read_excel(uploaded_template)
+            template_content = df.to_markdown(index=False)
+        elif uploaded_template.name.endswith(".docx"):
             from docx import Document
             doc = Document(uploaded_template)
             template_content = "\n".join([p.text for p in doc.paragraphs])
@@ -103,8 +110,8 @@ def main():
     
     with tab2:
         uploaded_file = st.file_uploader(
-            "上传客户询盘或URS文档（PDF/Word/文本）",
-            type=["pdf", "docx", "doc", "txt"]
+            "上传客户询盘或URS文档（PDF/Word/Excel/文本）",
+            type=["pdf", "docx", "doc", "xlsx", "xls", "txt"]
         )
         if uploaded_file is not None:
             st.success(f"已成功上传文件: {uploaded_file.name}")
@@ -171,7 +178,7 @@ def main():
         if st.button(f"📄 生成URS逐条回复 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成URS逐条回复..."):
-                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
+                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
                 st.session_state.generated_documents = {
                     "urs_response": generator.generate_urs_response(requirements)
                 }
@@ -182,7 +189,7 @@ def main():
         if st.button(f"📋 生成技术方案 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成技术方案..."):
-                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
+                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
                 st.session_state.generated_documents = {
                     "technical_spec": generator.generate_technical_spec()
                 }
@@ -193,7 +200,7 @@ def main():
         if st.button(f"💰 生成报价文档 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成报价文档..."):
-                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
+                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
                 st.session_state.generated_documents = {
                     "quotation_basic": generator.generate_quotation("basic"),
                     "quotation_standard": generator.generate_quotation("standard"),
@@ -204,7 +211,7 @@ def main():
     if st.button("✨ 一键生成全部文档", type="primary", use_container_width=True):
         from utils.generator import DocumentGenerator
         with st.spinner("正在生成全套文档..."):
-            generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
+            generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
             st.session_state.generated_documents = generator.generate_all_documents(requirements)
         st.success("全套文档生成成功！")
     
@@ -241,7 +248,7 @@ def main():
         with col1:
             filename = f"{selected_doc}.md"
             st.download_button(
-                label="下载 Markdown 格式",
+                label="📝 下载 Markdown 格式",
                 data=content.encode("utf-8"),
                 file_name=filename,
                 mime="text/markdown",
@@ -250,7 +257,7 @@ def main():
         
         with col2:
             from utils.generator import DocumentGenerator
-            generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
+            generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
             doc_buffer = BytesIO()
             try:
                 import tempfile
@@ -263,7 +270,7 @@ def main():
                 doc_buffer.seek(0)
                 filename = f"{selected_doc}.docx"
                 st.download_button(
-                    label="下载 Word 格式",
+                    label="📄 下载 Word 格式 (.docx)",
                     data=doc_buffer.getvalue(),
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -278,12 +285,12 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 使用说明")
     st.sidebar.markdown("""
-    1. 选择设备类型和法规标准
-    2. （可选）上传自定义模板
+    1. 选择设备类型和法规标准（可多选）
+    2. （可选）上传自定义模板（支持Excel/Word/Markdown）
     3. 输入URS文本或上传文档
     4. 系统自动智能解析关键需求
     5. 生成所需文档
-    6. 预览和下载文档
+    6. 预览并下载Markdown或Word格式文档
     """)
 
 if __name__ == "__main__":
