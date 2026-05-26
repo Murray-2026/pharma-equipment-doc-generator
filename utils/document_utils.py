@@ -35,12 +35,58 @@ def create_docx_template(content, output_path):
     doc.save(output_path)
 
 
+def parse_urs_structure(text):
+    urs_items = []
+    current_section = ""
+    current_section_title = ""
+    
+    lines = text.split("\n")
+    line_number = 0
+    
+    for line in lines:
+        line_number += 1
+        line = line.strip()
+        if not line:
+            continue
+        
+        section_match = re.match(r'^(第?\s*(\d+)\s*章?|[\d.]+)\s*[、.．]?\s*(.+)$', line)
+        if section_match:
+            current_section = section_match.group(1)
+            current_section_title = section_match.group(3)
+            urs_items.append({
+                "type": "section",
+                "section_number": current_section,
+                "title": current_section_title,
+                "line_number": line_number
+            })
+            continue
+        
+        item_match = re.match(r'^([\d.]+)\s*[、.．]?\s*(.+)$', line)
+        if item_match:
+            item_number = item_match.group(1)
+            item_text = item_match.group(2)
+            urs_items.append({
+                "type": "requirement",
+                "section": current_section,
+                "item_number": item_number,
+                "text": item_text,
+                "line_number": line_number
+            })
+        else:
+            if urs_items and urs_items[-1]["type"] == "requirement":
+                urs_items[-1]["text"] += " " + line
+    
+    return urs_items
+
+
 def extract_requirements(text):
     requirements = {
         "equipment_type": None,
         "specifications": [],
         "compliance": [],
-        "key_points": []
+        "key_points": [],
+        "urs_items": [],
+        "raw_text": text
     }
     
     lines = text.split("\n")
@@ -56,19 +102,21 @@ def extract_requirements(text):
                 requirements["equipment_type"] = "单体无菌隔离器"
             elif "VHP" in line or "传递窗" in line:
                 requirements["equipment_type"] = "VHP传递窗"
-            elif "整线" in line_lower:
+            elif "整线" in line_lower or "line" in line_lower:
                 requirements["equipment_type"] = "整线隔离器"
-            elif "负压" in line_lower:
+            elif "负压" in line_lower or "negative pressure" in line_lower:
                 requirements["equipment_type"] = "单体负压隔离器"
         
-        if "规格" in line or "尺寸" in line or "参数" in line or "spec" in line_lower:
+        if re.search(r'(规格|尺寸|参数|spec|specification|dimension|size)', line_lower):
             requirements["specifications"].append(line)
         
-        if "GMP" in line or "FDA" in line or "EU" in line or "合规" in line or "compliance" in line_lower:
+        if re.search(r'(GMP|FDA|EU|PIC/S|合规|compliance|regulation)', line_lower):
             requirements["compliance"].append(line)
         
-        if "要求" in line or "需求" in line or "必须" in line or "应" in line or "shall" in line_lower:
+        if re.search(r'(要求|需求|必须|应|shall|should|must|need|require)', line_lower):
             requirements["key_points"].append(line)
+    
+    requirements["urs_items"] = parse_urs_structure(text)
     
     return requirements
 

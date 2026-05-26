@@ -59,6 +59,8 @@ class TemplateManager:
 | 1 | 提供完整的验证文件 | 提供IQ/OQ/PQ验证方案及报告模板 | ✅ 完全符合 | - |
 | 2 | 支持现场验证服务 | 可提供专业的验证工程师进行现场验证支持 | ✅ 完全符合 | 可选服务 |
 
+{self._get_additional_responses(requirements)}
+
 ---
 
 ## 3. 补充说明
@@ -77,6 +79,46 @@ class TemplateManager:
 **日期**: {self.current_date}
 """
         return template
+    
+    def _get_additional_responses(self, requirements):
+        if not requirements:
+            return ""
+        
+        response = "\n### 2.5 根据客户URS提取的额外需求响应\n\n"
+        response += "| 序号 | URS要求 | 我方回复 | 符合性 | 备注 |\n"
+        response += "|------|---------|----------|--------|------|\n"
+        
+        key_points = requirements.get("key_points", [])[:10]
+        for i, point in enumerate(key_points, 1):
+            response_text = self._generate_response(point)
+            response += f"| {i} | {point[:50]}... | {response_text[:40]}... | ✅ 完全符合 | 根据{self.regulation}要求设计 |\n"
+        
+        if not key_points:
+            response = ""
+        
+        return response
+    
+    def _generate_response(self, requirement_text):
+        responses = {
+            "隔离器": "本公司提供的隔离器系统采用优质304/316L不锈钢材质，符合制药行业标准。",
+            "无菌": "设备设计符合无菌工艺要求，配备高效HEPA过滤系统，确保A级洁净环境。",
+            "VHP": "采用先进的VHP（过氧化氢）灭菌技术，灭菌效率达到6-log。",
+            "传递窗": "传递窗设计符合GMP要求，具备互锁功能，确保洁净区完整性。",
+            "整线": "整线隔离器系统可实现从物料进入到成品输出的全流程无菌操作。",
+            "负压": "负压隔离器系统设计用于处理高活性或有害物料，确保操作人员安全。",
+            "GMP": "本设备完全符合GMP要求，可提供完整的验证文档。",
+            "FDA": "设备设计符合FDA 21 CFR Part 11要求，支持电子记录和电子签名。",
+            "EU GMP": "符合EU GMP Annex 1要求，适用于无菌药品生产。",
+            "PIC/S": "符合PIC/S GMP要求，支持国际多场地生产认证。",
+            "尺寸": "可根据客户需求定制设备尺寸，标准型号覆盖各种生产规模。",
+            "参数": "设备关键参数可根据工艺需求进行调整和配置。",
+        }
+        
+        for keyword, response in responses.items():
+            if keyword in requirement_text:
+                return response
+        
+        return "我方将根据客户需求提供相应的技术解决方案。"
     
     def get_technical_spec_template(self):
         template = f"""# {self.equipment_type} - 技术方案
