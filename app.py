@@ -80,7 +80,8 @@ def generate_urs_response():
     customer_name = st.session_state.get('customer_name', '')
     project_name = st.session_state.get('project_name', '')
     contact = st.session_state.get('contact', '')
-    date = st.session_state.get('date', datetime.now().strftime('%Y-%m-%d'))
+    date_val = st.session_state.get('date')
+    date = date_val.strftime('%Y-%m-%d') if hasattr(date_val, 'strftime') else str(date_val) if date_val else datetime.now().strftime('%Y-%m-%d')
     regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
     equipment = st.session_state.selected_equipment
     key_points = st.session_state.key_params.split('\n') if st.session_state.key_params else []
@@ -114,7 +115,7 @@ def generate_urs_response():
 
 """
     
-    content += """## 三、合规声明
+    content += f"""## 三、合规声明
 
 我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
 
@@ -123,7 +124,7 @@ def generate_urs_response():
 **回复单位**: XX隔离器技术有限公司  
 **技术负责人**: 待填写  
 **联系电话**: 待填写  
-**日期**: """ + date
+**日期**: {date}"""
     
     return content
 
@@ -131,7 +132,8 @@ def generate_quotation():
     customer_name = st.session_state.get('customer_name', '')
     project_name = st.session_state.get('project_name', '')
     contact = st.session_state.get('contact', '')
-    date = st.session_state.get('date', datetime.now().strftime('%Y-%m-%d'))
+    date_val = st.session_state.get('date')
+    date = date_val.strftime('%Y-%m-%d') if hasattr(date_val, 'strftime') else str(date_val) if date_val else datetime.now().strftime('%Y-%m-%d')
     equipment = st.session_state.selected_equipment
     budget = st.session_state.budget_level
     regulations = [r for r in ['中国GMP', 'FDA 21 CFR', 'EU GMP Annex 1', 'WHO GMP', 'PIC/S'] if st.session_state.get(f"reg_{r}")]
