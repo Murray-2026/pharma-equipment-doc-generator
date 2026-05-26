@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from io import BytesIO
 from datetime import datetime
-from utils.document_utils import parse_uploaded_file, extract_requirements
+from utils.document_utils import parse_uploaded_file, extract_requirements, fill_template
 
 st.set_page_config(
     page_title="制药设备售前文档生成器",
@@ -20,6 +20,12 @@ def init_session_state():
         st.session_state.urs_text = ""
     if "custom_templates" not in st.session_state:
         st.session_state.custom_templates = {
+            "urs_response": None,
+            "technical_spec": None,
+            "quotation": None
+        }
+    if "custom_template_files" not in st.session_state:
+        st.session_state.custom_template_files = {
             "urs_response": None,
             "technical_spec": None,
             "quotation": None
@@ -52,6 +58,15 @@ def main():
     
     st.sidebar.subheader("📁 自定义模板")
     st.sidebar.markdown("上传您自己的文档模板（支持Excel/Word/Markdown格式）")
+    st.sidebar.markdown("**支持的占位符：**")
+    st.sidebar.markdown("- {设备类型} - 设备类型")
+    st.sidebar.markdown("- {法规标准} - 法规标准（逗号分隔）")
+    st.sidebar.markdown("- {生成日期} - 生成日期")
+    st.sidebar.markdown("- {年份} - 当前年份")
+    st.sidebar.markdown("- {URS文档编号} - URS文档编号")
+    st.sidebar.markdown("- {技术文档编号} - 技术文档编号")
+    st.sidebar.markdown("- {报价文档编号} - 报价文档编号")
+    st.sidebar.markdown("- {关键需求点} - 关键需求点（以换行分隔）")
     
     template_type = st.sidebar.selectbox(
         "选择模板类型",
@@ -70,22 +85,19 @@ def main():
             "报价单模板": "quotation"
         }[template_type]
         
-        if uploaded_template.name.endswith((".xlsx", ".xls")):
-            import pandas as pd
-            df = pd.read_excel(uploaded_template)
-            template_content = df.to_markdown(index=False)
-        elif uploaded_template.name.endswith(".docx"):
-            from docx import Document
-            doc = Document(uploaded_template)
-            template_content = "\n".join([p.text for p in doc.paragraphs])
-        else:
-            template_content = uploaded_template.read().decode("utf-8")
+        st.session_state.custom_template_files[template_key] = uploaded_template
+        st.session_state.custom_templates[template_key] = uploaded_template.read()
+        uploaded_template.seek(0)
         
-        st.session_state.custom_templates[template_key] = template_content
         st.sidebar.success(f"✅ {template_type}已上传")
     
     if st.sidebar.button("使用默认模板"):
         st.session_state.custom_templates = {
+            "urs_response": None,
+            "technical_spec": None,
+            "quotation": None
+        }
+        st.session_state.custom_template_files = {
             "urs_response": None,
             "technical_spec": None,
             "quotation": None
@@ -174,38 +186,74 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        template_used = "自定义" if st.session_state.custom_templates["urs_response"] else "默认"
+        template_used = "自定义" if st.session_state.custom_template_files["urs_response"] else "默认"
         if st.button(f"📄 生成URS逐条回复 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成URS逐条回复..."):
                 generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                st.session_state.generated_documents = {
-                    "urs_response": generator.generate_urs_response(requirements)
-                }
+                
+                if st.session_state.custom_template_files["urs_response"]:
+                    filled_file = fill_template(
+                        st.session_state.custom_template_files["urs_response"],
+                        equipment_type,
+                        regulations,
+                        requirements
+                    )
+                    st.session_state.generated_documents = {
+                        "urs_response_custom": filled_file
+                    }
+                else:
+                    st.session_state.generated_documents = {
+                        "urs_response": generator.generate_urs_response(requirements)
+                    }
             st.success("URS逐条回复生成成功！")
     
     with col2:
-        template_used = "自定义" if st.session_state.custom_templates["technical_spec"] else "默认"
+        template_used = "自定义" if st.session_state.custom_template_files["technical_spec"] else "默认"
         if st.button(f"📋 生成技术方案 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成技术方案..."):
                 generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                st.session_state.generated_documents = {
-                    "technical_spec": generator.generate_technical_spec()
-                }
+                
+                if st.session_state.custom_template_files["technical_spec"]:
+                    filled_file = fill_template(
+                        st.session_state.custom_template_files["technical_spec"],
+                        equipment_type,
+                        regulations,
+                        requirements
+                    )
+                    st.session_state.generated_documents = {
+                        "technical_spec_custom": filled_file
+                    }
+                else:
+                    st.session_state.generated_documents = {
+                        "technical_spec": generator.generate_technical_spec()
+                    }
             st.success("技术方案生成成功！")
     
     with col3:
-        template_used = "自定义" if st.session_state.custom_templates["quotation"] else "默认"
+        template_used = "自定义" if st.session_state.custom_template_files["quotation"] else "默认"
         if st.button(f"💰 生成报价文档 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成报价文档..."):
                 generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                st.session_state.generated_documents = {
-                    "quotation_basic": generator.generate_quotation("basic"),
-                    "quotation_standard": generator.generate_quotation("standard"),
-                    "quotation_premium": generator.generate_quotation("premium")
-                }
+                
+                if st.session_state.custom_template_files["quotation"]:
+                    filled_file = fill_template(
+                        st.session_state.custom_template_files["quotation"],
+                        equipment_type,
+                        regulations,
+                        requirements
+                    )
+                    st.session_state.generated_documents = {
+                        "quotation_custom": filled_file
+                    }
+                else:
+                    st.session_state.generated_documents = {
+                        "quotation_basic": generator.generate_quotation("basic"),
+                        "quotation_standard": generator.generate_quotation("standard"),
+                        "quotation_premium": generator.generate_quotation("premium")
+                    }
             st.success("报价文档生成成功！")
     
     if st.button("✨ 一键生成全部文档", type="primary", use_container_width=True):
@@ -230,7 +278,10 @@ def main():
                     "technical_spec": "📋 技术方案",
                     "quotation_basic": "💰 报价单（基础配置）",
                     "quotation_standard": "💰 报价单（标准配置）",
-                    "quotation_premium": "💰 报价单（高级配置）"
+                    "quotation_premium": "💰 报价单（高级配置）",
+                    "urs_response_custom": "📄 URS逐条回复（自定义模板）",
+                    "technical_spec_custom": "📋 技术方案（自定义模板）",
+                    "quotation_custom": "💰 报价单（自定义模板）"
                 }.get(x, x)
             )
         else:
@@ -238,46 +289,63 @@ def main():
         
         content = st.session_state.generated_documents[selected_doc]
         
-        with st.expander("📖 预览文档内容", expanded=True):
-            st.markdown(content)
-        
-        st.markdown("#### 📥 下载文档")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            filename = f"{selected_doc}.md"
+        if isinstance(content, dict) and "file" in content:
+            with st.expander("📖 预览文档内容", expanded=True):
+                st.info("自定义模板文档已生成，请直接下载查看！")
+            
+            st.markdown("#### 📥 下载文档")
+            
+            filename = content["filename"]
+            mime_type = content["mime_type"]
+            
             st.download_button(
-                label="📝 下载 Markdown 格式",
-                data=content.encode("utf-8"),
+                label=f"下载 {filename}",
+                data=content["file"],
                 file_name=filename,
-                mime="text/markdown",
+                mime=mime_type,
                 use_container_width=True
             )
-        
-        with col2:
-            from utils.generator import DocumentGenerator
-            generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-            doc_buffer = BytesIO()
-            try:
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                    doc_path = generator.create_word_document(content, os.path.basename(tmp.name), os.path.dirname(tmp.name))
-                    with open(doc_path, "rb") as f:
-                        doc_buffer.write(f.read())
-                    os.unlink(doc_path)
-                
-                doc_buffer.seek(0)
-                filename = f"{selected_doc}.docx"
+        else:
+            with st.expander("📖 预览文档内容", expanded=True):
+                st.markdown(content)
+            
+            st.markdown("#### 📥 下载文档")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                filename = f"{selected_doc}.md"
                 st.download_button(
-                    label="📄 下载 Word 格式 (.docx)",
-                    data=doc_buffer.getvalue(),
+                    label="📝 下载 Markdown 格式",
+                    data=content.encode("utf-8"),
                     file_name=filename,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    mime="text/markdown",
                     use_container_width=True
                 )
-            except Exception as e:
-                st.error(f"生成Word文档时出错: {e}")
+            
+            with col2:
+                from utils.generator import DocumentGenerator
+                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
+                doc_buffer = BytesIO()
+                try:
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                        doc_path = generator.create_word_document(content, os.path.basename(tmp.name), os.path.dirname(tmp.name))
+                        with open(doc_path, "rb") as f:
+                            doc_buffer.write(f.read())
+                        os.unlink(doc_path)
+                    
+                    doc_buffer.seek(0)
+                    filename = f"{selected_doc}.docx"
+                    st.download_button(
+                        label="📄 下载 Word 格式 (.docx)",
+                        data=doc_buffer.getvalue(),
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True
+                    )
+                except Exception as e:
+                    st.error(f"生成Word文档时出错: {e}")
     
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 关于")
@@ -290,7 +358,7 @@ def main():
     3. 输入URS文本或上传文档
     4. 系统自动智能解析关键需求
     5. 生成所需文档
-    6. 预览并下载Markdown或Word格式文档
+    6. 预览并下载文档
     """)
 
 if __name__ == "__main__":

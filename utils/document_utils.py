@@ -1,7 +1,9 @@
 from docx import Document
 from PyPDF2 import PdfReader
 from io import BytesIO
+from datetime import datetime
 import re
+import pandas as pd
 
 
 def read_pdf(file):
@@ -21,7 +23,6 @@ def read_docx(file):
 
 
 def read_excel(file):
-    import pandas as pd
     df = pd.read_excel(file)
     text = df.to_string(index=False)
     return text
@@ -144,3 +145,120 @@ def parse_uploaded_file(uploaded_file):
     
     requirements = extract_requirements(text)
     return text, requirements
+
+
+def fill_template(uploaded_file, equipment_type, regulations, requirements=None):
+    filename = uploaded_file.name
+    file_type = filename.split(".")[-1].lower()
+    
+    # 准备占位符数据
+    date_str = datetime.now().strftime("%Y年%m月%d日")
+    year_str = str(datetime.now().year)
+    regulation_str = ", ".join(regulations)
+    doc_number = datetime.now().strftime("%Y%m%d")
+    urs_doc_number = f"PHARMA-URS-{doc_number}"
+    tech_doc_number = f"PHARMA-TECH-{doc_number}"
+    quote_doc_number = f"PHARMA-QUOTE-{doc_number}"
+    
+    key_points_str = "\n".join(requirements.get("key_points", [])) if requirements else ""
+    specs_str = "\n".join(requirements.get("specifications", [])) if requirements else ""
+    
+    placeholders = {
+        "{设备类型}": equipment_type,
+        "{法规标准}": regulation_str,
+        "{生成日期}": date_str,
+        "{年份}": year_str,
+        "{URS文档编号}": urs_doc_number,
+        "{技术文档编号}": tech_doc_number,
+        "{报价文档编号}": quote_doc_number,
+        "{关键需求点}": key_points_str,
+        "{技术规格}": specs_str,
+        "{文档编号}": doc_number,
+        "{日期}": date_str
+    }
+    
+    # 处理不同文件类型
+    if file_type in ["docx", "doc"]:
+        return fill_word_template(uploaded_file, placeholders)
+    elif file_type in ["xlsx", "xls"]:
+        return fill_excel_template(uploaded_file, placeholders)
+    else:
+        return fill_text_template(uploaded_file, placeholders)
+
+
+def fill_word_template(uploaded_file, placeholders):
+    from docx import Document
+    from io import BytesIO
+    
+    doc = Document(uploaded_file)
+    
+    # 替换段落中的占位符
+    for paragraph in doc.paragraphs:
+        for placeholder, value in placeholders.items():
+            if placeholder in paragraph.text:
+                for run in paragraph.runs:
+                    if placeholder in run.text:
+                        run.text = run.text.replace(placeholder, value)
+    
+    # 替换表格中的占位符
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for placeholder, value in placeholders.items():
+                        if placeholder in paragraph.text:
+                            for run in paragraph.runs:
+                                if placeholder in run.text:
+                                    run.text = run.text.replace(placeholder, value)
+    
+    output_buffer = BytesIO()
+    doc.save(output_buffer)
+    output_buffer.seek(0)
+    
+    return {
+        "file": output_buffer.getvalue(),
+        "filename": f"filled_{uploaded_file.name}",
+        "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    }
+
+
+def fill_excel_template(uploaded_file, placeholders):
+    import pandas as pd
+    from io import BytesIO
+    
+    df = pd.read_excel(uploaded_file)
+    
+    # 替换数据框中的占位符
+    for col in df.columns:
+        df[col] = df[col].astype(str)
+        for placeholder, value in placeholders.items():
+            df[col] = df[col].str.replace(placeholder, value)
+    
+    output_buffer = BytesIO()
+    with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    
+    output_buffer.seek(0)
+    
+    return {
+        "file": output_buffer.getvalue(),
+        "filename": f"filled_{uploaded_file.name}",
+        "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    }
+
+
+def fill_text_template(uploaded_file, placeholders):
+    text = uploaded_file.read().decode("utf-8")
+    
+    for placeholder, value in placeholders.items():
+        text = text.replace(placeholder, value)
+    
+    output_buffer = BytesIO()
+    output_buffer.write(text.encode("utf-8"))
+    output_buffer.seek(0)
+    
+    return {
+        "file": output_buffer.getvalue(),
+        "filename": f"filled_{uploaded_file.name}",
+        "mime_type": "text/markdown" if uploaded_file.name.endswith(".md") else "text/plain"
+    }
