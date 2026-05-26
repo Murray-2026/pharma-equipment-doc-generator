@@ -3,187 +3,304 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>制药隔离器售前文档生成器</title>
+    <title>隔离器售前文档生成系统</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <style>
-        .equipment-card { transition: all 0.3s ease; }
-        .equipment-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
-        .nav-item { transition: all 0.2s ease; }
-        .nav-item:hover { background: rgba(59, 130, 246, 0.1); }
-        .nav-item.active { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
-        textarea { resize: none; }
+        body { font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif; }
+        .bg-primary { background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); }
+        .nav-tab.active { background: #fff; border-bottom: 2px solid #1e3a5f; color: #1e3a5f; }
+        .nav-tab { transition: all 0.2s ease; }
+        .nav-tab:hover { background: rgba(255,255,255,0.1); }
+        .panel-header { background: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        .expand-btn { cursor: pointer; transition: transform 0.2s; }
+        .expand-btn.open { transform: rotate(180deg); }
+        .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+        .status-meet { background: #d4edda; color: #155724; }
+        .status-partial { background: #fff3cd; color: #856404; }
+        .status-not-meet { background: #f8d7da; color: #721c24; }
+        textarea { resize: vertical; }
         .fade-in { animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .highlight { background: #fff3cd; padding: 2px 4px; border-radius: 3px; }
     </style>
 </head>
-<body class="min-h-screen bg-gray-50">
-    <div class="flex h-screen">
-        <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
-            <div class="p-4 border-b border-gray-200">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-                        <i class="fa fa-industry text-white text-xl"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-bold text-gray-800 text-lg">制药隔离器</h1>
-                        <p class="text-xs text-gray-500">售前文档生成器</p>
-                    </div>
+<body class="min-h-screen bg-gray-100">
+    <div class="bg-primary text-white px-6 py-4 shadow-lg">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="fa fa-industry text-2xl"></i>
+                <div>
+                    <h1 class="text-xl font-bold">隔离器售前文档生成系统</h1>
+                    <p class="text-xs text-blue-200">Isolator Pre-Sales Document Generator — URS回复 & 快速报价</p>
                 </div>
             </div>
-            
-            <div class="flex-1 overflow-auto p-4">
-                <div class="mb-6">
-                    <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <i class="fa fa-file-text-o"></i> URS输入
-                    </h3>
-                    <textarea 
-                        id="ursInput" 
-                        class="w-full h-40 p-3 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="粘贴客户URS文档或询盘内容..."></textarea>
-                    <button 
-                        id="parseBtn" 
-                        class="w-full mt-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center justify-center gap-2">
-                        <i class="fa fa-magic"></i> 智能解析
-                    </button>
-                </div>
-                
-                <div class="mb-6">
-                    <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                        <i class="fa fa-cog"></i> 解析结果
-                    </h3>
-                    <div class="space-y-3">
-                        <div>
-                            <label class="text-xs text-gray-500">设备类型</label>
-                            <select id="equipmentType" class="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm">
-                                <option value="单体无菌隔离器">单体无菌隔离器</option>
-                                <option value="VHP传递窗">VHP传递窗</option>
-                                <option value="整线隔离器">整线隔离器</option>
-                                <option value="单体负压隔离器">单体负压隔离器</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">预算级别</label>
-                            <select id="budgetLevel" class="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm">
-                                <option value="standard">标准配置</option>
-                                <option value="basic">基础配置</option>
-                                <option value="premium">高级配置</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">法规标准（多选）</label>
-                            <div class="mt-1 space-y-1">
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" class="reg-check" value="中国GMP" checked>
-                                    <span>中国GMP</span>
-                                </label>
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" class="reg-check" value="FDA">
-                                    <span>FDA</span>
-                                </label>
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" class="reg-check" value="EU GMP">
-                                    <span>EU GMP</span>
-                                </label>
-                                <label class="flex items-center gap-2 text-sm">
-                                    <input type="checkbox" class="reg-check" value="PIC/S">
-                                    <span>PIC/S</span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <button 
-                    id="generateBtn" 
-                    class="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2 font-semibold">
-                    <i class="fa fa-file-text"></i> 生成文档
-                </button>
+            <div class="flex items-center gap-4">
+                <span class="text-xs text-blue-200">2026-05-26 16:07 版本 2.0</span>
             </div>
         </div>
-        
+    </div>
+
+    <div class="flex h-[calc(100vh-73px)]">
+        <div class="w-96 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+            <div class="panel-header px-4 py-3">
+                <h3 class="font-semibold text-gray-700 flex items-center gap-2">
+                    <i class="fa fa-user-circle-o"></i> 客户基本信息
+                </h3>
+            </div>
+            <div class="p-4 space-y-3">
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">客户公司名称</label>
+                    <input type="text" id="customerName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="请输入客户公司名称">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">项目名称</label>
+                    <input type="text" id="projectName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="请输入项目名称">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">联系人</label>
+                        <input type="text" id="contactName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" placeholder="联系人姓名">
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">日期</label>
+                        <input type="date" id="docDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" value="2026-05-26">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-2">适用法规（多选）</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="reg-check" value="中国GMP" checked>
+                            <span>中国GMP</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="reg-check" value="FDA 21 CFR">
+                            <span>FDA 21 CFR</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="reg-check" value="EU GMP Annex 1" checked>
+                            <span>EU GMP Annex 1</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="reg-check" value="WHO GMP" checked>
+                            <span>WHO GMP</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="reg-check" value="PIC/S">
+                            <span>PIC/S</span>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs text-gray-500 block mb-1">供应商名称</label>
+                    <input type="text" id="supplierName" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" value="XX隔离器技术有限公司">
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200">
+                <div class="panel-header px-4 py-3 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-700 flex items-center gap-2">
+                        <i class="fa fa-file-text-o"></i> 客户URS/询盘输入
+                    </h3>
+                    <i class="fa fa-chevron-down expand-btn" onclick="togglePanel('ursPanel')"></i>
+                </div>
+                <div id="ursPanel" class="p-4">
+                    <textarea 
+                        id="ursInput" 
+                        class="w-full h-48 p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                        placeholder="请粘贴客户的URS文档或询盘内容...
+
+示例：
+1. 设备需满足无菌隔离要求，正压运行
+2. 操作区洁净度ISO 5级
+3. VHP灭菌，灭菌效果≥6-log
+4. 配备手套检漏系统
+5. 设备尺寸不小于L1200×D800×H900mm
+6. 需满足中国GMP及EU GMP Annex 1要求"></textarea>
+                    <div class="flex gap-2 mt-3">
+                        <button 
+                            id="parseBtn" 
+                            class="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 font-medium">
+                            <i class="fa fa-magic"></i> 智能解析
+                        </button>
+                        <button 
+                            id="loadExampleBtn" 
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center justify-center gap-2">
+                            <i class="fa fa-file-text"></i> 加载示例
+                        </button>
+                        <button 
+                            id="clearBtn" 
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center justify-center gap-2">
+                            <i class="fa fa-trash"></i> 清空
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-200 flex-1 overflow-auto">
+                <div class="panel-header px-4 py-3 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-700 flex items-center gap-2">
+                        <i class="fa fa-sliders"></i> 手动调整
+                    </h3>
+                    <i class="fa fa-chevron-down expand-btn" onclick="togglePanel('adjustPanel')"></i>
+                </div>
+                <div id="adjustPanel" class="p-4 space-y-4">
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-2">设备类型确认/修正（可多选）</label>
+                        <div class="space-y-1">
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="checkbox" class="equip-check" value="单体无菌隔离器">
+                                <span>单体无菌隔离器</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="checkbox" class="equip-check" value="VHP传递窗">
+                                <span>VHP传递窗</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="checkbox" class="equip-check" value="整线隔离器">
+                                <span>整线隔离器</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input type="checkbox" class="equip-check" value="单体负压隔离器">
+                                <span>单体负压隔离器</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs text-gray-500 block mb-1">关键参数修正</label>
+                        <textarea 
+                            id="keyParams" 
+                            class="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                            placeholder="解析URS后将自动填充，可手动修正..."></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">预算级别</label>
+                            <select id="budgetLevel" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                                <option value="standard">标准型</option>
+                                <option value="basic">基础型</option>
+                                <option value="premium">高级型</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">语言</label>
+                            <select id="docLanguage" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500">
+                                <option value="zh">中文</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button 
+                        id="generateBtn" 
+                        class="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition flex items-center justify-center gap-2 font-semibold">
+                        <i class="fa fa-file-text"></i> 生成文档
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="flex-1 flex flex-col overflow-hidden">
-            <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <div class="nav-item active px-4 py-2 rounded-lg cursor-pointer" data-tab="response">
+            <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-1">
+                    <div class="nav-tab active px-4 py-2 rounded-t-lg font-medium" data-tab="response">
                         <i class="fa fa-file-text-o mr-2"></i> URS逐条回复
                     </div>
-                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="quotation">
+                    <div class="nav-tab px-4 py-2 rounded-t-lg font-medium text-gray-600" data-tab="quotation">
                         <i class="fa fa-money mr-2"></i> 快速报价单
                     </div>
-                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="history">
-                        <i class="fa fa-history mr-2"></i> 历史记录
-                    </div>
-                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="templates">
+                    <div class="nav-tab px-4 py-2 rounded-t-lg font-medium text-gray-600" data-tab="templates">
                         <i class="fa fa-folder mr-2"></i> 模板库
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="copyBtn" class="p-2 hover:bg-gray-100 rounded-lg transition">
-                        <i class="fa fa-copy text-gray-600"></i>
+                    <button id="copyBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition flex items-center gap-2 text-sm">
+                        <i class="fa fa-copy"></i> 复制全文
                     </button>
-                    <button id="downloadBtn" class="p-2 hover:bg-gray-100 rounded-lg transition">
-                        <i class="fa fa-download text-gray-600"></i>
+                    <button id="printBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition flex items-center gap-2 text-sm">
+                        <i class="fa fa-print"></i> 打印/导出PDF
                     </button>
                 </div>
             </div>
-            
-            <div class="flex-1 overflow-auto p-6">
+
+            <div class="flex-1 overflow-auto p-6 bg-gray-100">
                 <div id="responseTab" class="tab-content">
-                    <div class="max-w-4xl mx-auto fade-in" id="responseContent">
-                        <div class="bg-white rounded-xl shadow-sm p-8">
-                            <div class="text-center mb-8">
-                                <h2 class="text-2xl font-bold text-gray-800">URS逐条回复</h2>
-                                <p class="text-gray-500 mt-2">等待输入URS文档...</p>
-                            </div>
-                            <div class="text-center py-12">
-                                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <i class="fa fa-file-text-o text-gray-400 text-3xl"></i>
+                    <div class="max-w-6xl mx-auto fade-in">
+                        <div class="bg-white rounded-xl shadow-sm overflow-hidden" id="responseContent">
+                            <div class="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+                                <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                                    <i class="fa fa-lock"></i>
+                                    <span>本文件为XX隔离器技术有限公司机密文件，未经授权不得复制或传播</span>
                                 </div>
-                                <p class="text-gray-400">请在左侧输入URS文档并点击"智能解析"</p>
+                            </div>
+                            <div class="p-6">
+                                <div class="text-center mb-6">
+                                    <h2 class="text-xl font-bold text-gray-800">用户需求说明（URS）逐条回复</h2>
+                                    <p class="text-gray-500 text-sm mt-1">User Requirement Specification (URS) — Point-by-Point Reply</p>
+                                </div>
+                                <table class="w-full text-sm mb-6">
+                                    <tr>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">客户名称</td>
+                                        <td class="border border-gray-300 px-4 py-2" width="25%">待填写</td>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">项目名称</td>
+                                        <td class="border border-gray-300 px-4 py-2" width="25%">待填写</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">供应商</td>
+                                        <td class="border border-gray-300 px-4 py-2">XX隔离器技术有限公司</td>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">日期</td>
+                                        <td class="border border-gray-300 px-4 py-2">2026-05-26</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">设备类型</td>
+                                        <td class="border border-gray-300 px-4 py-2">待确认</td>
+                                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">适用法规</td>
+                                        <td class="border border-gray-300 px-4 py-2">待确认</td>
+                                    </tr>
+                                </table>
+                                <div class="text-center py-12">
+                                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fa fa-file-text-o text-gray-400 text-3xl"></i>
+                                    </div>
+                                    <p class="text-gray-400">请在左侧输入URS文档并点击"智能解析"</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="quotationTab" class="tab-content hidden">
-                    <div class="max-w-4xl mx-auto fade-in" id="quotationContent">
-                        <div class="bg-white rounded-xl shadow-sm p-8">
-                            <div class="text-center mb-8">
-                                <h2 class="text-2xl font-bold text-gray-800">快速报价单</h2>
-                                <p class="text-gray-500 mt-2">等待生成报价...</p>
+                    <div class="max-w-6xl mx-auto fade-in">
+                        <div class="bg-white rounded-xl shadow-sm overflow-hidden" id="quotationContent">
+                            <div class="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+                                <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                                    <i class="fa fa-lock"></i>
+                                    <span>本报价单为XX隔离器技术有限公司商业机密，未经授权不得复制或传播</span>
+                                </div>
                             </div>
+                            <div class="p-6">
+                                <div class="text-center mb-6">
+                                    <h2 class="text-xl font-bold text-gray-800">快速报价单</h2>
+                                    <p class="text-gray-500 text-sm mt-1">Quotation</p>
+                                </div>
+                                <div class="text-center py-12">
+                                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <i class="fa fa-money text-gray-400 text-3xl"></i>
+                                    </div>
+                                    <p class="text-gray-400">请在左侧输入URS文档并点击"生成文档"</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="templatesTab" class="tab-content hidden">
+                    <div class="max-w-6xl mx-auto fade-in">
+                        <div class="bg-white rounded-xl shadow-sm overflow-hidden p-6">
+                            <h2 class="text-xl font-bold text-gray-800 mb-6">模板库</h2>
                             <div class="text-center py-12">
                                 <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <i class="fa fa-money text-gray-400 text-3xl"></i>
-                                </div>
-                                <p class="text-gray-400">请在左侧输入URS文档并点击"生成文档"</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="historyTab" class="tab-content hidden">
-                    <div class="max-w-4xl mx-auto">
-                        <h2 class="text-xl font-bold text-gray-800 mb-6">📊 历史记录</h2>
-                        <div id="historyList" class="space-y-4">
-                            <div class="bg-white rounded-xl shadow-sm p-6 text-center">
-                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <i class="fa fa-history text-gray-400 text-2xl"></i>
-                                </div>
-                                <p class="text-gray-400">暂无历史记录</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="templatesTab" class="tab-content hidden">
-                    <div class="max-w-4xl mx-auto">
-                        <h2 class="text-xl font-bold text-gray-800 mb-6">📁 模板库</h2>
-                        <div id="templateList" class="space-y-4">
-                            <div class="bg-white rounded-xl shadow-sm p-6 text-center">
-                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <i class="fa fa-folder text-gray-400 text-2xl"></i>
+                                    <i class="fa fa-folder text-gray-400 text-3xl"></i>
                                 </div>
                                 <p class="text-gray-400">暂无保存的模板</p>
                             </div>
@@ -195,18 +312,19 @@
     </div>
 
     <script>
-        const PRICES = {
-            '单体无菌隔离器': { basic: [80, 150], standard: [100, 200], premium: [180, 320] },
-            'VHP传递窗': { basic: [30, 60], standard: [40, 80], premium: [80, 150] },
-            '整线隔离器': { basic: [300, 600], standard: [400, 800], premium: [700, 1500] },
-            '单体负压隔离器': { basic: [100, 200], standard: [120, 250], premium: [250, 450] }
+        const EQUIPMENT_INFO = {
+            '单体无菌隔离器': { desc: '无菌分装、无菌检测、称量', basic: [80, 150], standard: [100, 200], premium: [180, 320] },
+            'VHP传递窗': { desc: '物料/工具VHP灭菌传递', basic: [30, 60], standard: [40, 80], premium: [80, 150] },
+            '整线隔离器': { desc: '灌装+轧盖+称重全线隔离', basic: [300, 600], standard: [400, 800], premium: [700, 1500] },
+            '单体负压隔离器': { desc: '有毒/高活性药品OEL防护', basic: [100, 200], standard: [120, 250], premium: [250, 450] }
         };
 
-        const EQUIPMENT_DESC = {
-            '单体无菌隔离器': '无菌分装、无菌检测、称量',
-            'VHP传递窗': '物料/工具VHP灭菌传递',
-            '整线隔离器': '灌装+轧盖+称重全线隔离',
-            '单体负压隔离器': '有毒/高活性药品OEL防护'
+        const REGULATION_MAP = {
+            '中国GMP': { full: '《药品生产质量管理规范》（2010年修订）', clause: '第五章 洁净室（区）管理' },
+            'FDA 21 CFR': { full: '21 CFR Part 11 / Part 210 / Part 211', clause: '电子记录与电子签名要求' },
+            'EU GMP Annex 1': { full: 'EU GMP Annex 1: Manufacture of Sterile Medicinal Products', clause: 'Chapter 3: Environmental Control' },
+            'WHO GMP': { full: 'WHO Good Manufacturing Practices', clause: 'Annex 1: Sterile Products' },
+            'PIC/S': { full: 'PIC/S GMP Guidelines', clause: 'Annex 1: Sterile Medicinal Products' }
         };
 
         function loadHistory() {
@@ -220,31 +338,100 @@
             localStorage.setItem('history', JSON.stringify(history.slice(0, 50)));
         }
 
-        function loadTemplates() {
-            const templates = localStorage.getItem('templates');
-            return templates ? JSON.parse(templates) : [];
-        }
-
-        function saveTemplate(name, content, type) {
-            const templates = loadTemplates();
-            templates.push({ name, content, type, date: new Date().toLocaleString() });
-            localStorage.setItem('templates', JSON.stringify(templates));
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            const btn = event.target;
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                btn.classList.add('open');
+            } else {
+                panel.style.display = 'none';
+                btn.classList.remove('open');
+            }
         }
 
         function parseURS(text) {
-            const result = { equipment: '单体无菌隔离器', specs: [], compliance: [], keyPoints: [] };
-            
-            if (text.includes('VHP') || text.includes('传递窗')) result.equipment = 'VHP传递窗';
-            if (text.includes('整线') || text.includes('全线')) result.equipment = '整线隔离器';
-            if (text.includes('负压') || text.includes('negative pressure')) result.equipment = '单体负压隔离器';
-            if (text.includes('无菌') && !text.includes('负压')) result.equipment = '单体无菌隔离器';
-            
+            const result = { 
+                equipment: [], 
+                specs: [], 
+                compliance: [], 
+                keyPoints: [],
+                pressure: null,
+                cleanliness: null,
+                sterilization: null,
+                dimensions: null
+            };
+
             const lines = text.split('\n').filter(l => l.trim());
-            lines.forEach(line => {
-                if (/规格|尺寸|参数|size|dimension/i.test(line)) result.specs.push(line.trim());
-                if (/GMP|FDA|EU|PIC\/S|ISO|合规|compliance/i.test(line)) result.compliance.push(line.trim());
-                if (/要求|需求|必须|应|shall|should|must/i.test(line)) result.keyPoints.push(line.trim());
+            
+            lines.forEach((line, index) => {
+                const originalLine = line;
+                let processedLine = line.toLowerCase().trim();
+                
+                if (processedLine.includes('隔离器') || processedLine.includes('isolator')) {
+                    if (processedLine.includes('无菌') || processedLine.includes('aseptic')) {
+                        if (!processedLine.includes('负压')) result.equipment.push('单体无菌隔离器');
+                    }
+                    if (processedLine.includes('整线') || processedLine.includes('full line')) {
+                        result.equipment.push('整线隔离器');
+                    }
+                    if (processedLine.includes('负压') || processedLine.includes('negative pressure')) {
+                        result.equipment.push('单体负压隔离器');
+                    }
+                }
+                if (processedLine.includes('vhp') || processedLine.includes('传递窗') || processedLine.includes('pass-through')) {
+                    result.equipment.push('VHP传递窗');
+                }
+                
+                if (processedLine.includes('正压') || processedLine.includes('positive pressure')) {
+                    result.pressure = '正压运行';
+                    result.keyPoints.push(`压力要求：${originalLine}`);
+                }
+                if (processedLine.includes('负压') || processedLine.includes('negative pressure')) {
+                    result.pressure = '负压运行';
+                    result.keyPoints.push(`压力要求：${originalLine}`);
+                }
+                
+                if (processedLine.includes('iso') || processedLine.includes('洁净度') || processedLine.includes('cleanliness')) {
+                    const match = line.match(/ISO\s*(\d+)/);
+                    if (match) result.cleanliness = `ISO ${match[1]}级`;
+                    result.specs.push(`洁净度要求：${originalLine}`);
+                    result.keyPoints.push(`洁净度要求：${originalLine}`);
+                }
+                
+                if (processedLine.includes('vhp') || processedLine.includes('灭菌') || processedLine.includes('decontamination')) {
+                    const match = line.match(/(\d+)-log/);
+                    if (match) result.sterilization = `灭菌效果≥${match[1]}-log`;
+                    result.specs.push(`灭菌要求：${originalLine}`);
+                    result.keyPoints.push(`灭菌要求：${originalLine}`);
+                }
+                
+                if (processedLine.includes('尺寸') || processedLine.includes('mm') || processedLine.includes('dimension')) {
+                    const dimMatch = line.match(/(L?\d+)\s*[×xX×]\s*(D?\d+)\s*[×xX×]\s*(H?\d+)/);
+                    if (dimMatch) result.dimensions = `${dimMatch[1]}×${dimMatch[2]}×${dimMatch[3]}mm`;
+                    result.specs.push(`尺寸要求：${originalLine}`);
+                    result.keyPoints.push(`尺寸要求：${originalLine}`);
+                }
+                
+                if (processedLine.includes('手套') || processedLine.includes('glove')) {
+                    result.specs.push(`手套系统：${originalLine}`);
+                    result.keyPoints.push(`手套系统：${originalLine}`);
+                }
+                
+                if (/GMP|FDA|EU|PIC\/S|WHO|compliance|regulation/i.test(line)) {
+                    result.compliance.push(originalLine);
+                    result.keyPoints.push(`合规要求：${originalLine}`);
+                }
+                
+                if (/要求|需求|必须|应|shall|should|must|require/i.test(line)) {
+                    if (!result.keyPoints.some(k => k.includes(line.substring(0, 20)))) {
+                        result.keyPoints.push(originalLine);
+                    }
+                }
             });
+
+            result.equipment = [...new Set(result.equipment)];
+            if (result.equipment.length === 0) result.equipment = ['单体无菌隔离器'];
             
             return result;
         }
@@ -254,129 +441,279 @@
             return Array.from(checks).map(c => c.value);
         }
 
-        function generateURSResponse(equipment, regulations, keyPoints) {
-            const date = new Date().toLocaleDateString('zh-CN');
-            const regText = regulations.join('、');
-            let content = `# ${equipment} - URS逐条回复
+        function getSelectedEquipment() {
+            const checks = document.querySelectorAll('.equip-check:checked');
+            return Array.from(checks).map(c => c.value);
+        }
 
-**文档编号**: PHARMA-URS-${Date.now().toString().slice(-8)}  
-**生成日期**: ${date}  
-**适用法规**: ${regText}
+        function generateURSResponse(parsed) {
+            const customerName = document.getElementById('customerName').value || '待填写';
+            const projectName = document.getElementById('projectName').value || '待填写';
+            const supplierName = document.getElementById('supplierName').value || 'XX隔离器技术有限公司';
+            const docDate = document.getElementById('docDate').value || '2026-05-26';
+            const regulations = getSelectedRegulations();
+            const equipment = getSelectedEquipment().length ? getSelectedEquipment() : parsed.equipment;
+            
+            let regText = regulations.join('、');
+            let equipText = equipment.join('、');
 
----
-
-## 一、概述
-
-本回复文档针对贵公司提出的${equipment}用户需求说明（URS）进行逐条响应，确保方案符合${regText}要求。
-
-## 二、URS逐条回复
-
-`;
-
-            keyPoints.forEach((point, i) => {
-                content += `### ${i + 1}. ${point}
-
-**我方响应**: 我方完全理解并满足此项要求，将在IQ/OQ/PQ验证中予以确认。
-**法规依据**: 符合${regText}相关要求。
-**验证方式**: IQ/OQ/PQ
-
-`;
+            let rowsHtml = '';
+            parsed.keyPoints.forEach((point, i) => {
+                const category = classifyRequirement(point);
+                const [techDesc, regulationBasis] = generateTechResponse(point, regulations);
+                
+                rowsHtml += `
+                <tr>
+                    <td class="border border-gray-300 px-4 py-3 text-center font-medium">URS-${String(i+1).padStart(3, '0')}</td>
+                    <td class="border border-gray-300 px-4 py-3">${escapeHtml(point)}</td>
+                    <td class="border border-gray-300 px-4 py-3 text-center">${category}</td>
+                    <td class="border border-gray-300 px-4 py-3 text-center">
+                        <span class="status-badge status-meet">满足</span>
+                    </td>
+                    <td class="border border-gray-300 px-4 py-3 text-sm">${techDesc}</td>
+                    <td class="border border-gray-300 px-4 py-3 text-sm">${regulationBasis}</td>
+                    <td class="border border-gray-300 px-4 py-3">-</td>
+                </tr>
+                `;
             });
 
-            content += `---
+            const html = `
+            <div class="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+                <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                    <i class="fa fa-lock"></i>
+                    <span>本文件为${supplierName}机密文件，未经授权不得复制或传播</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">用户需求说明（URS）逐条回复</h2>
+                    <p class="text-gray-500 text-sm mt-1">User Requirement Specification (URS) — Point-by-Point Reply</p>
+                </div>
+                <table class="w-full text-sm mb-6">
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">客户名称</td>
+                        <td class="border border-gray-300 px-4 py-2" width="25%">${customerName}</td>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">项目名称</td>
+                        <td class="border border-gray-300 px-4 py-2" width="25%">${projectName}</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">供应商</td>
+                        <td class="border border-gray-300 px-4 py-2">${supplierName}</td>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">日期</td>
+                        <td class="border border-gray-300 px-4 py-2">${docDate}</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">设备类型</td>
+                        <td class="border border-gray-300 px-4 py-2">${equipText}</td>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">适用法规</td>
+                        <td class="border border-gray-300 px-4 py-2">${regText}</td>
+                    </tr>
+                </table>
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-800 text-white">
+                            <th class="border border-gray-600 px-4 py-3 text-center" width="10%">条款编号</th>
+                            <th class="border border-gray-600 px-4 py-3" width="25%">客户需求原文</th>
+                            <th class="border border-gray-600 px-4 py-3 text-center" width="10%">分类</th>
+                            <th class="border border-gray-600 px-4 py-3 text-center" width="10%">回复</th>
+                            <th class="border border-gray-600 px-4 py-3" width="20%">技术说明</th>
+                            <th class="border border-gray-600 px-4 py-3" width="15%">法规依据</th>
+                            <th class="border border-gray-600 px-4 py-3 text-center" width="10%">备注</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+                <div class="mt-8 pt-6 border-t border-gray-300">
+                    <h3 class="font-semibold text-gray-800 mb-4">合规声明</h3>
+                    <p class="text-sm text-gray-600 mb-4">
+                        ${supplierName}保证所提供的${equipText}符合${regText}相关要求，并将提供完整的验证文件包（IQ/OQ/PQ）。
+                    </p>
+                    <table class="w-full text-sm">
+                        <tr>
+                            <td class="px-4 py-2" width="30%">回复单位</td>
+                            <td class="px-4 py-2">${supplierName}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">技术负责人</td>
+                            <td class="px-4 py-2">待填写</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">联系电话</td>
+                            <td class="px-4 py-2">待填写</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">日期</td>
+                            <td class="px-4 py-2">${docDate}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            `;
 
-## 三、合规声明
-
-我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
-
-**回复单位**: [贵公司名称]  
-**技术负责人**: [负责人姓名]  
-**联系电话**: [联系电话]  
-**日期**: ${date}`;
-
-            return content;
+            return html;
         }
 
-        function generateQuotation(equipment, budget, regulations) {
-            const date = new Date().toLocaleDateString('zh-CN');
-            const regText = regulations.join('、');
-            const priceRange = PRICES[equipment][budget];
-            const [minPrice, maxPrice] = priceRange;
-            const configName = { basic: '基础配置', standard: '标准配置', premium: '高级配置' }[budget];
-
-            let content = `# ${equipment} - 快速报价单
-
-**报价编号**: PHARMA-QUOTE-${Date.now().toString().slice(-8)}  
-**报价日期**: ${date}  
-**有效期**: 30天
-
----
-
-## 📋 项目信息
-
-| 项目 | 内容 |
-|------|------|
-| 设备类型 | ${equipment} |
-| 设备说明 | ${EQUIPMENT_DESC[equipment]} |
-| 配置等级 | ${configName} |
-| 适用法规 | ${regText} |
-
----
-
-## 💰 预算区间
-
-| 配置等级 | 价格范围（万元） |
-|----------|------------------|
-| 基础配置 | ${PRICES[equipment].basic[0]} - ${PRICES[equipment].basic[1]} |
-| 标准配置 | ${PRICES[equipment].standard[0]} - ${PRICES[equipment].standard[1]} |
-| 高级配置 | ${PRICES[equipment].premium[0]} - ${PRICES[equipment].premium[1]} |
-
-**本次报价**: **${minPrice} - ${maxPrice} 万元**
-
----
-
-## 🛠 配置清单
-
-**${configName}包含**:
-- 主机系统 ×1
-- HEPA过滤器 ×2
-- 备用手套 ×2副
-- 专用工具包 ×1
-- 操作手册 ×1
-- 验证文件包（IQ/OQ/PQ）
-
----
-
-## 📝 商务条款
-
-- **付款方式**: 预付款30%，发货款60%，质保金10%
-- **交货期**: 收到预付款后45-60天
-- **质保期**: 12个月
-- **售后服务**: 终身技术支持
-
-**报价单位**: [贵公司名称]  
-**联系人**: [联系人姓名]  
-**联系电话**: [联系电话]`;
-
-            return content;
+        function classifyRequirement(text) {
+            const lower = text.toLowerCase();
+            if (lower.includes('尺寸') || lower.includes('mm') || lower.includes('dimension')) return '结构尺寸';
+            if (lower.includes('洁净度') || lower.includes('iso') || lower.includes('clean')) return '洁净等级';
+            if (lower.includes('灭菌') || lower.includes('vhp') || lower.includes('decontamination')) return '灭菌消毒';
+            if (lower.includes('手套') || lower.includes('glove')) return '操作组件';
+            if (lower.includes('压力') || lower.includes('pressure')) return '压力控制';
+            if (lower.includes('gmp') || lower.includes('fda') || lower.includes('compliance')) return '法规合规';
+            return '其他';
         }
 
-        function renderMarkdown(text) {
-            return text
-                .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-gray-800 mt-6 mb-2">$1</h3>')
-                .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-800 mt-8 mb-3">$1</h2>')
-                .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-800 mt-0 mb-4">$1</h1>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
-                .replace(/^- (.*$)/gim, '<li class="ml-4 text-gray-700">$1</li>')
-                .replace(/\n/g, '<br>')
-                .replace(/\|(.*)\|/g, (m) => {
-                    const parts = m.split('|').filter(p => p.trim());
-                    if (parts.length > 1) {
-                        return `<div class="flex border-b border-gray-200 py-1"><div class="flex-1 px-2">${parts[0]}</div><div class="flex-1 px-2">${parts[1]}</div></div>`;
-                    }
-                    return m;
-                });
+        function generateTechResponse(point, regulations) {
+            const lower = point.toLowerCase();
+            let techDesc = '本设备可完全满足客户该项需求，具体技术方案详见技术规格书。';
+            let regulationBasis = '';
+
+            if (lower.includes('无菌') || lower.includes('aseptic')) {
+                techDesc = '本设备采用密闭隔离设计，确保无菌环境，配备高效HEPA过滤器，维持ISO 5级洁净度。';
+                regulationBasis = regulations.map(r => REGULATION_MAP[r]?.clause || r).join('；');
+            }
+            if (lower.includes('vhp') || lower.includes('灭菌')) {
+                techDesc = '采用VHP汽化过氧化氢灭菌技术，灭菌效果可达6-log以上，符合无菌生产要求。';
+                regulationBasis = 'EU GMP Annex 1 Chapter 8；中国GMP 2010版附录1';
+            }
+            if (lower.includes('iso') || lower.includes('洁净度')) {
+                techDesc = '操作区域洁净度达到ISO 5级（A级），符合cGMP对无菌生产环境的要求。';
+                regulationBasis = 'ISO 14644-1；EU GMP Annex 1';
+            }
+            if (lower.includes('手套')) {
+                techDesc = '配备进口丁腈手套，带手套检漏系统，确保操作过程的密闭性。';
+                regulationBasis = 'EU GMP Annex 1';
+            }
+
+            return [techDesc, regulationBasis || '-'];
+        }
+
+        function generateQuotation(parsed) {
+            const customerName = document.getElementById('customerName').value || '待填写';
+            const projectName = document.getElementById('projectName').value || '待填写';
+            const supplierName = document.getElementById('supplierName').value || 'XX隔离器技术有限公司';
+            const docDate = document.getElementById('docDate').value || '2026-05-26';
+            const budget = document.getElementById('budgetLevel').value;
+            const regulations = getSelectedRegulations();
+            const equipment = getSelectedEquipment().length ? getSelectedEquipment() : parsed.equipment;
+            
+            const equipText = equipment[0] || '单体无菌隔离器';
+            const equipInfo = EQUIPMENT_INFO[equipText];
+            const [minPrice, maxPrice] = equipInfo[budget];
+            const budgetName = { basic: '基础型', standard: '标准型', premium: '高级型' }[budget];
+
+            let priceDetails = '';
+            const basePrice = (minPrice + maxPrice) / 2;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">设备主机</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.7).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">HEPA过滤器及配件</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.1).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">VHP灭菌系统</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.08).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">安装调试</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.05).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">验证文件包</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.05).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2 font-semibold">小计</td><td class="border border-gray-300 px-4 py-2 text-right font-semibold">¥${basePrice.toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2">增值税(13%)</td><td class="border border-gray-300 px-4 py-2 text-right">¥${(basePrice * 0.13).toFixed(0)}万</td></tr>`;
+            priceDetails += `<tr><td class="border border-gray-300 px-4 py-2 bg-gray-50 font-bold">总计</td><td class="border border-gray-300 px-4 py-2 bg-gray-50 text-right font-bold">¥${(basePrice * 1.13).toFixed(0)}万</td></tr>`;
+
+            const html = `
+            <div class="bg-yellow-50 border-b border-yellow-200 px-6 py-3">
+                <div class="flex items-center gap-2 text-yellow-700 text-sm">
+                    <i class="fa fa-lock"></i>
+                    <span>本报价单为${supplierName}商业机密，未经授权不得复制或传播</span>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="text-center mb-6">
+                    <h2 class="text-xl font-bold text-gray-800">快速报价单</h2>
+                    <p class="text-gray-500 text-sm mt-1">Quotation</p>
+                </div>
+                <table class="w-full text-sm mb-6">
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">客户名称</td>
+                        <td class="border border-gray-300 px-4 py-2" width="25%">${customerName}</td>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50" width="25%">项目名称</td>
+                        <td class="border border-gray-300 px-4 py-2" width="25%">${projectName}</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">设备类型</td>
+                        <td class="border border-gray-300 px-4 py-2">${equipText}</td>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">配置等级</td>
+                        <td class="border border-gray-300 px-4 py-2">${budgetName}</td>
+                    </tr>
+                    <tr>
+                        <td class="border border-gray-300 px-4 py-2 bg-gray-50">适用法规</td>
+                        <td class="border border-gray-300 px-4 py-2" colspan="3">${regulations.join('、')}</td>
+                    </tr>
+                </table>
+                <h3 class="font-semibold text-gray-800 mb-4">预算区间</h3>
+                <table class="w-full text-sm border-collapse mb-6">
+                    <thead>
+                        <tr class="bg-gray-800 text-white">
+                            <th class="border border-gray-600 px-4 py-3">配置等级</th>
+                            <th class="border border-gray-600 px-4 py-3 text-right">价格范围（万元）</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="border border-gray-300 px-4 py-2">基础型</td><td class="border border-gray-300 px-4 py-2 text-right">${equipInfo.basic[0]} - ${equipInfo.basic[1]}万</td></tr>
+                        <tr><td class="border border-gray-300 px-4 py-2 bg-gray-50 font-medium">标准型</td><td class="border border-gray-300 px-4 py-2 bg-gray-50 text-right font-medium">${equipInfo.standard[0]} - ${equipInfo.standard[1]}万</td></tr>
+                        <tr><td class="border border-gray-300 px-4 py-2">高级型</td><td class="border border-gray-300 px-4 py-2 text-right">${equipInfo.premium[0]} - ${equipInfo.premium[1]}万</td></tr>
+                    </tbody>
+                </table>
+                <h3 class="font-semibold text-gray-800 mb-4">报价明细（${budgetName}）</h3>
+                <table class="w-full text-sm border-collapse mb-6">
+                    <tbody>
+                        ${priceDetails}
+                    </tbody>
+                </table>
+                <h3 class="font-semibold text-gray-800 mb-4">配置清单</h3>
+                <ul class="list-disc list-inside text-sm text-gray-600 mb-6">
+                    <li>${equipText}主机系统 ×1</li>
+                    <li>HEPA过滤器（H14级）×2</li>
+                    <li>备用手套 ×2副</li>
+                    <li>专用工具包 ×1</li>
+                    <li>操作手册 ×1</li>
+                    <li>验证文件包（IQ/OQ/PQ）×1</li>
+                </ul>
+                <h3 class="font-semibold text-gray-800 mb-4">商务条款</h3>
+                <ul class="list-disc list-inside text-sm text-gray-600 mb-6">
+                    <li><strong>付款方式</strong>: 预付款30%，发货款60%，质保金10%</li>
+                    <li><strong>交货期</strong>: 收到预付款后45-60天</li>
+                    <li><strong>质保期</strong>: 12个月</li>
+                    <li><strong>售后服务</strong>: 终身技术支持</li>
+                </ul>
+                <div class="pt-6 border-t border-gray-300">
+                    <table class="w-full text-sm">
+                        <tr>
+                            <td class="px-4 py-2" width="30%">报价单位</td>
+                            <td class="px-4 py-2">${supplierName}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">联系人</td>
+                            <td class="px-4 py-2">待填写</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">联系电话</td>
+                            <td class="px-4 py-2">待填写</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">报价日期</td>
+                            <td class="px-4 py-2">${docDate}</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2">有效期</td>
+                            <td class="px-4 py-2">30天</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            `;
+
+            return html;
+        }
+
+        function escapeHtml(text) {
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
         document.getElementById('parseBtn').addEventListener('click', () => {
@@ -386,12 +723,39 @@
                 return;
             }
             
-            const result = parseURS(text);
-            document.getElementById('equipmentType').value = result.equipment;
+            const parsed = parseURS(text);
             
-            if (result.specs.length > 0) {
-                alert(`✅ 解析完成！\n设备类型: ${result.equipment}\n技术规格: ${result.specs.length}条\n合规要求: ${result.compliance.length}条\n关键需求: ${result.keyPoints.length}条`);
-            }
+            document.querySelectorAll('.equip-check').forEach(cb => cb.checked = false);
+            parsed.equipment.forEach(eq => {
+                const cb = document.querySelector(`.equip-check[value="${eq}"]`);
+                if (cb) cb.checked = true;
+            });
+            
+            const params = [];
+            if (parsed.pressure) params.push(`压力要求: ${parsed.pressure}`);
+            if (parsed.cleanliness) params.push(`洁净度: ${parsed.cleanliness}`);
+            if (parsed.sterilization) params.push(`灭菌效果: ${parsed.sterilization}`);
+            if (parsed.dimensions) params.push(`尺寸: ${parsed.dimensions}`);
+            document.getElementById('keyParams').value = params.join('\n');
+            
+            alert(`✅ 智能解析完成！\n\n设备类型: ${parsed.equipment.join('、')}\n关键参数: ${params.length}项\n技术规格: ${parsed.specs.length}条\n合规要求: ${parsed.compliance.length}条\n关键需求: ${parsed.keyPoints.length}条`);
+        });
+
+        document.getElementById('loadExampleBtn').addEventListener('click', () => {
+            document.getElementById('ursInput').value = `1. 设备需满足无菌隔离要求，正压运行
+2. 操作区洁净度ISO 5级
+3. VHP灭菌，灭菌效果≥6-log
+4. 配备手套检漏系统
+5. 设备尺寸不小于L1200×D800×H900mm
+6. 需满足中国GMP及EU GMP Annex 1要求
+7. 提供完整的IQ/OQ/PQ验证文件包
+8. 设备材质为316L不锈钢`;
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('ursInput').value = '';
+            document.getElementById('keyParams').value = '';
+            document.querySelectorAll('.equip-check').forEach(cb => cb.checked = false);
         });
 
         document.getElementById('generateBtn').addEventListener('click', () => {
@@ -401,131 +765,36 @@
                 return;
             }
             
-            const equipment = document.getElementById('equipmentType').value;
-            const budget = document.getElementById('budgetLevel').value;
-            const regulations = getSelectedRegulations();
-            
             const parsed = parseURS(text);
-            const response = generateURSResponse(equipment, regulations, parsed.keyPoints.length ? parsed.keyPoints : ['URS需求内容待确认']);
-            const quotation = generateQuotation(equipment, budget, regulations);
+            const responseHtml = generateURSResponse(parsed);
+            const quotationHtml = generateQuotation(parsed);
             
-            document.getElementById('responseContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(response)}</div>`;
-            document.getElementById('quotationContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(quotation)}</div>`;
+            document.getElementById('responseContent').innerHTML = responseHtml;
+            document.getElementById('quotationContent').innerHTML = quotationHtml;
             
             saveToHistory({
-                type: '报价单',
-                equipment,
-                budget,
-                regulations,
-                response,
-                quotation,
-                date: new Date().toLocaleString()
+                type: 'URS回复&报价单',
+                equipment: getSelectedEquipment().join('、'),
+                date: new Date().toLocaleString(),
+                customer: document.getElementById('customerName').value
             });
-            
-            document.querySelector('.nav-item.active').classList.remove('active');
-            document.querySelector('[data-tab="response"]').classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-            document.getElementById('responseTab').classList.remove('hidden');
             
             alert('✅ 文档生成成功！');
         });
 
-        document.querySelectorAll('.nav-item').forEach(item => {
+        document.querySelectorAll('.nav-tab').forEach(item => {
             item.addEventListener('click', () => {
-                document.querySelector('.nav-item.active').classList.remove('active');
+                document.querySelector('.nav-tab.active').classList.remove('active');
                 item.classList.add('active');
                 
                 const tab = item.dataset.tab;
                 document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
                 document.getElementById(`${tab}Tab`).classList.remove('hidden');
-                
-                if (tab === 'history') loadHistoryUI();
-                if (tab === 'templates') loadTemplatesUI();
             });
         });
 
-        function loadHistoryUI() {
-            const history = loadHistory();
-            const list = document.getElementById('historyList');
-            
-            if (history.length === 0) {
-                list.innerHTML = '<div class="bg-white rounded-xl shadow-sm p-6 text-center"><div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fa fa-history text-gray-400 text-2xl"></i></div><p class="text-gray-400">暂无历史记录</p></div>';
-                return;
-            }
-            
-            list.innerHTML = history.map((item, i) => `
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <h3 class="font-semibold text-gray-800">${item.equipment}</h3>
-                            <p class="text-sm text-gray-500">${item.date}</p>
-                        </div>
-                        <span class="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">${item.budget === 'basic' ? '基础' : item.budget === 'standard' ? '标准' : '高级'}</span>
-                    </div>
-                    <div class="space-y-2">
-                        <button class="text-sm text-blue-500 hover:text-blue-600" onclick="showDocument('${i}', 'response')">查看URS回复</button>
-                        <button class="text-sm text-blue-500 hover:text-blue-600" onclick="showDocument('${i}', 'quotation')">查看报价单</button>
-                        <button class="text-sm text-green-500 hover:text-green-600" onclick="saveAsTemplate('${i}')">保存为模板</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function loadTemplatesUI() {
-            const templates = loadTemplates();
-            const list = document.getElementById('templateList');
-            
-            if (templates.length === 0) {
-                list.innerHTML = '<div class="bg-white rounded-xl shadow-sm p-6 text-center"><div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fa fa-folder text-gray-400 text-2xl"></i></div><p class="text-gray-400">暂无保存的模板</p></div>';
-                return;
-            }
-            
-            list.innerHTML = templates.map((item, i) => `
-                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                    <div class="flex justify-between items-start mb-3">
-                        <div>
-                            <h3 class="font-semibold text-gray-800">${item.name}</h3>
-                            <p class="text-sm text-gray-500">${item.date} · ${item.type}</p>
-                        </div>
-                        <button class="text-sm text-red-500 hover:text-red-600" onclick="deleteTemplate(${i})">删除</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        window.showDocument = function(index, type) {
-            const history = loadHistory();
-            const item = history[index];
-            const content = item[type];
-            
-            document.querySelector('.nav-item.active').classList.remove('active');
-            document.querySelector('[data-tab="response"]').classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
-            document.getElementById('responseTab').classList.remove('hidden');
-            
-            document.getElementById('responseContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(content)}</div>`;
-        };
-
-        window.saveAsTemplate = function(index) {
-            const history = loadHistory();
-            const item = history[index];
-            const name = prompt('请输入模板名称:', `${item.equipment}报价单`);
-            
-            if (name) {
-                saveTemplate(name, item.quotation, '报价单');
-                alert('✅ 模板保存成功！');
-            }
-        };
-
-        window.deleteTemplate = function(index) {
-            const templates = loadTemplates();
-            templates.splice(index, 1);
-            localStorage.setItem('templates', JSON.stringify(templates));
-            loadTemplatesUI();
-        };
-
         document.getElementById('copyBtn').addEventListener('click', () => {
-            const activeTab = document.querySelector('.nav-item.active').dataset.tab;
+            const activeTab = document.querySelector('.nav-tab.active').dataset.tab;
             const content = document.getElementById(`${activeTab}Content`).innerText;
             
             navigator.clipboard.writeText(content).then(() => {
@@ -533,21 +802,8 @@
             });
         });
 
-        document.getElementById('downloadBtn').addEventListener('click', () => {
-            const activeTab = document.querySelector('.nav-item.active').dataset.tab;
-            const content = document.getElementById(`${activeTab}Content`).innerText;
-            const blob = new Blob([content], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `document_${Date.now()}.md`;
-            a.click();
-            URL.revokeObjectURL(url);
-        });
-
-        document.addEventListener('DOMContentLoaded', () => {
-            loadHistoryUI();
-            loadTemplatesUI();
+        document.getElementById('printBtn').addEventListener('click', () => {
+            window.print();
         });
     </script>
 </body>
