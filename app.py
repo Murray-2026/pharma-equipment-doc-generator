@@ -18,6 +18,12 @@ def init_session_state():
         st.session_state.selected_config = "standard"
     if "urs_text" not in st.session_state:
         st.session_state.urs_text = ""
+    if "custom_templates" not in st.session_state:
+        st.session_state.custom_templates = {
+            "urs_response": None,
+            "technical_spec": None,
+            "quotation": None
+        }
 
 def main():
     init_session_state()
@@ -37,9 +43,47 @@ def main():
     st.sidebar.subheader("法规标准")
     regulation = st.sidebar.selectbox(
         "选择目标法规",
-        ["中国GMP", "FDA", "EU GMP", "PIC/S"],
+        ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "PIC/S GMP"],
         index=0
     )
+    
+    st.sidebar.subheader("📁 自定义模板")
+    st.sidebar.markdown("上传您自己的文档模板（支持Word/Markdown格式）")
+    
+    template_type = st.sidebar.selectbox(
+        "选择模板类型",
+        ["URS回复模板", "技术方案模板", "报价单模板"]
+    )
+    
+    uploaded_template = st.sidebar.file_uploader(
+        "上传自定义模板",
+        type=["docx", "md", "txt"]
+    )
+    
+    if uploaded_template is not None:
+        template_key = {
+            "URS回复模板": "urs_response",
+            "技术方案模板": "technical_spec",
+            "报价单模板": "quotation"
+        }[template_type]
+        
+        if uploaded_template.name.endswith(".docx"):
+            from docx import Document
+            doc = Document(uploaded_template)
+            template_content = "\n".join([p.text for p in doc.paragraphs])
+        else:
+            template_content = uploaded_template.read().decode("utf-8")
+        
+        st.session_state.custom_templates[template_key] = template_content
+        st.sidebar.success(f"✅ {template_type}已上传")
+    
+    if st.sidebar.button("使用默认模板"):
+        st.session_state.custom_templates = {
+            "urs_response": None,
+            "technical_spec": None,
+            "quotation": None
+        }
+        st.sidebar.success("已切换到默认模板")
     
     st.markdown("### 步骤 1: 输入或上传URS文档")
     
@@ -52,7 +96,7 @@ def main():
             "URS文本内容",
             value=st.session_state.urs_text,
             height=300,
-            placeholder="请在此输入或粘贴客户的URS文档内容...\n\n例如：\n## 1. 概述\n本URS定义了无菌隔离器的技术要求...\n\n## 2. 设备要求\n2.1 设备类型：单体无菌隔离器\n2.2 工作舱尺寸：不小于1200×800×1000mm\n\n## 3. 法规要求\n符合中国GMP 2010版...",
+            placeholder="请在此输入或粘贴客户的URS文档内容...\n\n例如：\n## 1. 概述\n本URS定义了无菌隔离器的技术要求，适用于注射剂无菌生产环境...\n\n## 2. 适用范围\n本URS适用于新建无菌车间的隔离器系统...\n\n## 3. 设备要求\n3.1 设备类型：单体无菌隔离器\n3.2 工作舱尺寸：不小于1200×800×1000mm（长×宽×高）\n3.3 材质要求：与产品接触部分为316L不锈钢\n\n## 4. 法规要求\n符合中国GMP 2010版附录1无菌药品要求...",
             help="支持任意长度的文本输入，系统将自动解析关键需求点"
         )
         st.session_state.urs_text = urs_input
@@ -123,30 +167,33 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("📄 生成URS逐条回复", use_container_width=True):
+        template_used = "自定义" if st.session_state.custom_templates["urs_response"] else "默认"
+        if st.button(f"📄 生成URS逐条回复 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成URS逐条回复..."):
-                generator = DocumentGenerator(equipment_type, regulation)
+                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
                 st.session_state.generated_documents = {
                     "urs_response": generator.generate_urs_response(requirements)
                 }
             st.success("URS逐条回复生成成功！")
     
     with col2:
-        if st.button("📋 生成技术方案", use_container_width=True):
+        template_used = "自定义" if st.session_state.custom_templates["technical_spec"] else "默认"
+        if st.button(f"📋 生成技术方案 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成技术方案..."):
-                generator = DocumentGenerator(equipment_type, regulation)
+                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
                 st.session_state.generated_documents = {
                     "technical_spec": generator.generate_technical_spec()
                 }
             st.success("技术方案生成成功！")
     
     with col3:
-        if st.button("💰 生成报价文档", use_container_width=True):
+        template_used = "自定义" if st.session_state.custom_templates["quotation"] else "默认"
+        if st.button(f"💰 生成报价文档 ({template_used})", use_container_width=True):
             from utils.generator import DocumentGenerator
             with st.spinner("正在生成报价文档..."):
-                generator = DocumentGenerator(equipment_type, regulation)
+                generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
                 st.session_state.generated_documents = {
                     "quotation_basic": generator.generate_quotation("basic"),
                     "quotation_standard": generator.generate_quotation("standard"),
@@ -157,7 +204,7 @@ def main():
     if st.button("✨ 一键生成全部文档", type="primary", use_container_width=True):
         from utils.generator import DocumentGenerator
         with st.spinner("正在生成全套文档..."):
-            generator = DocumentGenerator(equipment_type, regulation)
+            generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
             st.session_state.generated_documents = generator.generate_all_documents(requirements)
         st.success("全套文档生成成功！")
     
@@ -203,7 +250,7 @@ def main():
         
         with col2:
             from utils.generator import DocumentGenerator
-            generator = DocumentGenerator(equipment_type, regulation)
+            generator = DocumentGenerator(equipment_type, regulation, st.session_state.custom_templates)
             doc_buffer = BytesIO()
             try:
                 import tempfile
@@ -232,10 +279,11 @@ def main():
     st.sidebar.markdown("### 使用说明")
     st.sidebar.markdown("""
     1. 选择设备类型和法规标准
-    2. 输入URS文本或上传文档
-    3. 系统自动智能解析关键需求
-    4. 生成所需文档
-    5. 预览和下载文档
+    2. （可选）上传自定义模板
+    3. 输入URS文本或上传文档
+    4. 系统自动智能解析关键需求
+    5. 生成所需文档
+    6. 预览和下载文档
     """)
 
 if __name__ == "__main__":
