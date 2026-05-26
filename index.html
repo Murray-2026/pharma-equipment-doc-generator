@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>制药隔离器售前文档生成器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        .equipment-card { transition: all 0.3s ease; }
+        .equipment-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.1); }
+        .nav-item { transition: all 0.2s ease; }
+        .nav-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .nav-item.active { background: rgba(59, 130, 246, 0.1); color: #3B82F6; }
+        textarea { resize: none; }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+    <div class="flex h-screen">
+        <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+            <div class="p-4 border-b border-gray-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fa fa-industry text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-gray-800 text-lg">制药隔离器</h1>
+                        <p class="text-xs text-gray-500">售前文档生成器</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto p-4">
+                <div class="mb-6">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <i class="fa fa-file-text-o"></i> URS输入
+                    </h3>
+                    <textarea 
+                        id="ursInput" 
+                        class="w-full h-40 p-3 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="粘贴客户URS文档或询盘内容..."></textarea>
+                    <button 
+                        id="parseBtn" 
+                        class="w-full mt-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition flex items-center justify-center gap-2">
+                        <i class="fa fa-magic"></i> 智能解析
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <h3 class="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <i class="fa fa-cog"></i> 解析结果
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-gray-500">设备类型</label>
+                            <select id="equipmentType" class="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="单体无菌隔离器">单体无菌隔离器</option>
+                                <option value="VHP传递窗">VHP传递窗</option>
+                                <option value="整线隔离器">整线隔离器</option>
+                                <option value="单体负压隔离器">单体负压隔离器</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">预算级别</label>
+                            <select id="budgetLevel" class="w-full mt-1 p-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="standard">标准配置</option>
+                                <option value="basic">基础配置</option>
+                                <option value="premium">高级配置</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500">法规标准（多选）</label>
+                            <div class="mt-1 space-y-1">
+                                <label class="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" class="reg-check" value="中国GMP" checked>
+                                    <span>中国GMP</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" class="reg-check" value="FDA">
+                                    <span>FDA</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" class="reg-check" value="EU GMP">
+                                    <span>EU GMP</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" class="reg-check" value="PIC/S">
+                                    <span>PIC/S</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button 
+                    id="generateBtn" 
+                    class="w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition flex items-center justify-center gap-2 font-semibold">
+                    <i class="fa fa-file-text"></i> 生成文档
+                </button>
+            </div>
+        </div>
+        
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="nav-item active px-4 py-2 rounded-lg cursor-pointer" data-tab="response">
+                        <i class="fa fa-file-text-o mr-2"></i> URS逐条回复
+                    </div>
+                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="quotation">
+                        <i class="fa fa-money mr-2"></i> 快速报价单
+                    </div>
+                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="history">
+                        <i class="fa fa-history mr-2"></i> 历史记录
+                    </div>
+                    <div class="nav-item px-4 py-2 rounded-lg cursor-pointer" data-tab="templates">
+                        <i class="fa fa-folder mr-2"></i> 模板库
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="copyBtn" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                        <i class="fa fa-copy text-gray-600"></i>
+                    </button>
+                    <button id="downloadBtn" class="p-2 hover:bg-gray-100 rounded-lg transition">
+                        <i class="fa fa-download text-gray-600"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto p-6">
+                <div id="responseTab" class="tab-content">
+                    <div class="max-w-4xl mx-auto fade-in" id="responseContent">
+                        <div class="bg-white rounded-xl shadow-sm p-8">
+                            <div class="text-center mb-8">
+                                <h2 class="text-2xl font-bold text-gray-800">URS逐条回复</h2>
+                                <p class="text-gray-500 mt-2">等待输入URS文档...</p>
+                            </div>
+                            <div class="text-center py-12">
+                                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fa fa-file-text-o text-gray-400 text-3xl"></i>
+                                </div>
+                                <p class="text-gray-400">请在左侧输入URS文档并点击"智能解析"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="quotationTab" class="tab-content hidden">
+                    <div class="max-w-4xl mx-auto fade-in" id="quotationContent">
+                        <div class="bg-white rounded-xl shadow-sm p-8">
+                            <div class="text-center mb-8">
+                                <h2 class="text-2xl font-bold text-gray-800">快速报价单</h2>
+                                <p class="text-gray-500 mt-2">等待生成报价...</p>
+                            </div>
+                            <div class="text-center py-12">
+                                <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fa fa-money text-gray-400 text-3xl"></i>
+                                </div>
+                                <p class="text-gray-400">请在左侧输入URS文档并点击"生成文档"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="historyTab" class="tab-content hidden">
+                    <div class="max-w-4xl mx-auto">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6">📊 历史记录</h2>
+                        <div id="historyList" class="space-y-4">
+                            <div class="bg-white rounded-xl shadow-sm p-6 text-center">
+                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fa fa-history text-gray-400 text-2xl"></i>
+                                </div>
+                                <p class="text-gray-400">暂无历史记录</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="templatesTab" class="tab-content hidden">
+                    <div class="max-w-4xl mx-auto">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6">📁 模板库</h2>
+                        <div id="templateList" class="space-y-4">
+                            <div class="bg-white rounded-xl shadow-sm p-6 text-center">
+                                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <i class="fa fa-folder text-gray-400 text-2xl"></i>
+                                </div>
+                                <p class="text-gray-400">暂无保存的模板</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const PRICES = {
+            '单体无菌隔离器': { basic: [80, 150], standard: [100, 200], premium: [180, 320] },
+            'VHP传递窗': { basic: [30, 60], standard: [40, 80], premium: [80, 150] },
+            '整线隔离器': { basic: [300, 600], standard: [400, 800], premium: [700, 1500] },
+            '单体负压隔离器': { basic: [100, 200], standard: [120, 250], premium: [250, 450] }
+        };
+
+        const EQUIPMENT_DESC = {
+            '单体无菌隔离器': '无菌分装、无菌检测、称量',
+            'VHP传递窗': '物料/工具VHP灭菌传递',
+            '整线隔离器': '灌装+轧盖+称重全线隔离',
+            '单体负压隔离器': '有毒/高活性药品OEL防护'
+        };
+
+        function loadHistory() {
+            const history = localStorage.getItem('history');
+            return history ? JSON.parse(history) : [];
+        }
+
+        function saveToHistory(record) {
+            const history = loadHistory();
+            history.unshift(record);
+            localStorage.setItem('history', JSON.stringify(history.slice(0, 50)));
+        }
+
+        function loadTemplates() {
+            const templates = localStorage.getItem('templates');
+            return templates ? JSON.parse(templates) : [];
+        }
+
+        function saveTemplate(name, content, type) {
+            const templates = loadTemplates();
+            templates.push({ name, content, type, date: new Date().toLocaleString() });
+            localStorage.setItem('templates', JSON.stringify(templates));
+        }
+
+        function parseURS(text) {
+            const result = { equipment: '单体无菌隔离器', specs: [], compliance: [], keyPoints: [] };
+            
+            if (text.includes('VHP') || text.includes('传递窗')) result.equipment = 'VHP传递窗';
+            if (text.includes('整线') || text.includes('全线')) result.equipment = '整线隔离器';
+            if (text.includes('负压') || text.includes('negative pressure')) result.equipment = '单体负压隔离器';
+            if (text.includes('无菌') && !text.includes('负压')) result.equipment = '单体无菌隔离器';
+            
+            const lines = text.split('\n').filter(l => l.trim());
+            lines.forEach(line => {
+                if (/规格|尺寸|参数|size|dimension/i.test(line)) result.specs.push(line.trim());
+                if (/GMP|FDA|EU|PIC\/S|ISO|合规|compliance/i.test(line)) result.compliance.push(line.trim());
+                if (/要求|需求|必须|应|shall|should|must/i.test(line)) result.keyPoints.push(line.trim());
+            });
+            
+            return result;
+        }
+
+        function getSelectedRegulations() {
+            const checks = document.querySelectorAll('.reg-check:checked');
+            return Array.from(checks).map(c => c.value);
+        }
+
+        function generateURSResponse(equipment, regulations, keyPoints) {
+            const date = new Date().toLocaleDateString('zh-CN');
+            const regText = regulations.join('、');
+            let content = `# ${equipment} - URS逐条回复
+
+**文档编号**: PHARMA-URS-${Date.now().toString().slice(-8)}  
+**生成日期**: ${date}  
+**适用法规**: ${regText}
+
+---
+
+## 一、概述
+
+本回复文档针对贵公司提出的${equipment}用户需求说明（URS）进行逐条响应，确保方案符合${regText}要求。
+
+## 二、URS逐条回复
+
+`;
+
+            keyPoints.forEach((point, i) => {
+                content += `### ${i + 1}. ${point}
+
+**我方响应**: 我方完全理解并满足此项要求，将在IQ/OQ/PQ验证中予以确认。
+**法规依据**: 符合${regText}相关要求。
+**验证方式**: IQ/OQ/PQ
+
+`;
+            });
+
+            content += `---
+
+## 三、合规声明
+
+我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
+
+**回复单位**: [贵公司名称]  
+**技术负责人**: [负责人姓名]  
+**联系电话**: [联系电话]  
+**日期**: ${date}`;
+
+            return content;
+        }
+
+        function generateQuotation(equipment, budget, regulations) {
+            const date = new Date().toLocaleDateString('zh-CN');
+            const regText = regulations.join('、');
+            const priceRange = PRICES[equipment][budget];
+            const [minPrice, maxPrice] = priceRange;
+            const configName = { basic: '基础配置', standard: '标准配置', premium: '高级配置' }[budget];
+
+            let content = `# ${equipment} - 快速报价单
+
+**报价编号**: PHARMA-QUOTE-${Date.now().toString().slice(-8)}  
+**报价日期**: ${date}  
+**有效期**: 30天
+
+---
+
+## 📋 项目信息
+
+| 项目 | 内容 |
+|------|------|
+| 设备类型 | ${equipment} |
+| 设备说明 | ${EQUIPMENT_DESC[equipment]} |
+| 配置等级 | ${configName} |
+| 适用法规 | ${regText} |
+
+---
+
+## 💰 预算区间
+
+| 配置等级 | 价格范围（万元） |
+|----------|------------------|
+| 基础配置 | ${PRICES[equipment].basic[0]} - ${PRICES[equipment].basic[1]} |
+| 标准配置 | ${PRICES[equipment].standard[0]} - ${PRICES[equipment].standard[1]} |
+| 高级配置 | ${PRICES[equipment].premium[0]} - ${PRICES[equipment].premium[1]} |
+
+**本次报价**: **${minPrice} - ${maxPrice} 万元**
+
+---
+
+## 🛠 配置清单
+
+**${configName}包含**:
+- 主机系统 ×1
+- HEPA过滤器 ×2
+- 备用手套 ×2副
+- 专用工具包 ×1
+- 操作手册 ×1
+- 验证文件包（IQ/OQ/PQ）
+
+---
+
+## 📝 商务条款
+
+- **付款方式**: 预付款30%，发货款60%，质保金10%
+- **交货期**: 收到预付款后45-60天
+- **质保期**: 12个月
+- **售后服务**: 终身技术支持
+
+**报价单位**: [贵公司名称]  
+**联系人**: [联系人姓名]  
+**联系电话**: [联系电话]`;
+
+            return content;
+        }
+
+        function renderMarkdown(text) {
+            return text
+                .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-gray-800 mt-6 mb-2">$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold text-gray-800 mt-8 mb-3">$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-gray-800 mt-0 mb-4">$1</h1>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+                .replace(/^- (.*$)/gim, '<li class="ml-4 text-gray-700">$1</li>')
+                .replace(/\n/g, '<br>')
+                .replace(/\|(.*)\|/g, (m) => {
+                    const parts = m.split('|').filter(p => p.trim());
+                    if (parts.length > 1) {
+                        return `<div class="flex border-b border-gray-200 py-1"><div class="flex-1 px-2">${parts[0]}</div><div class="flex-1 px-2">${parts[1]}</div></div>`;
+                    }
+                    return m;
+                });
+        }
+
+        document.getElementById('parseBtn').addEventListener('click', () => {
+            const text = document.getElementById('ursInput').value;
+            if (!text.trim()) {
+                alert('请输入URS文档内容');
+                return;
+            }
+            
+            const result = parseURS(text);
+            document.getElementById('equipmentType').value = result.equipment;
+            
+            if (result.specs.length > 0) {
+                alert(`✅ 解析完成！\n设备类型: ${result.equipment}\n技术规格: ${result.specs.length}条\n合规要求: ${result.compliance.length}条\n关键需求: ${result.keyPoints.length}条`);
+            }
+        });
+
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            const text = document.getElementById('ursInput').value;
+            if (!text.trim()) {
+                alert('请先输入URS文档内容');
+                return;
+            }
+            
+            const equipment = document.getElementById('equipmentType').value;
+            const budget = document.getElementById('budgetLevel').value;
+            const regulations = getSelectedRegulations();
+            
+            const parsed = parseURS(text);
+            const response = generateURSResponse(equipment, regulations, parsed.keyPoints.length ? parsed.keyPoints : ['URS需求内容待确认']);
+            const quotation = generateQuotation(equipment, budget, regulations);
+            
+            document.getElementById('responseContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(response)}</div>`;
+            document.getElementById('quotationContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(quotation)}</div>`;
+            
+            saveToHistory({
+                type: '报价单',
+                equipment,
+                budget,
+                regulations,
+                response,
+                quotation,
+                date: new Date().toLocaleString()
+            });
+            
+            document.querySelector('.nav-item.active').classList.remove('active');
+            document.querySelector('[data-tab="response"]').classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.getElementById('responseTab').classList.remove('hidden');
+            
+            alert('✅ 文档生成成功！');
+        });
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelector('.nav-item.active').classList.remove('active');
+                item.classList.add('active');
+                
+                const tab = item.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+                document.getElementById(`${tab}Tab`).classList.remove('hidden');
+                
+                if (tab === 'history') loadHistoryUI();
+                if (tab === 'templates') loadTemplatesUI();
+            });
+        });
+
+        function loadHistoryUI() {
+            const history = loadHistory();
+            const list = document.getElementById('historyList');
+            
+            if (history.length === 0) {
+                list.innerHTML = '<div class="bg-white rounded-xl shadow-sm p-6 text-center"><div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fa fa-history text-gray-400 text-2xl"></i></div><p class="text-gray-400">暂无历史记录</p></div>';
+                return;
+            }
+            
+            list.innerHTML = history.map((item, i) => `
+                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-semibold text-gray-800">${item.equipment}</h3>
+                            <p class="text-sm text-gray-500">${item.date}</p>
+                        </div>
+                        <span class="px-2 py-1 bg-blue-100 text-blue-600 text-xs rounded">${item.budget === 'basic' ? '基础' : item.budget === 'standard' ? '标准' : '高级'}</span>
+                    </div>
+                    <div class="space-y-2">
+                        <button class="text-sm text-blue-500 hover:text-blue-600" onclick="showDocument('${i}', 'response')">查看URS回复</button>
+                        <button class="text-sm text-blue-500 hover:text-blue-600" onclick="showDocument('${i}', 'quotation')">查看报价单</button>
+                        <button class="text-sm text-green-500 hover:text-green-600" onclick="saveAsTemplate('${i}')">保存为模板</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadTemplatesUI() {
+            const templates = loadTemplates();
+            const list = document.getElementById('templateList');
+            
+            if (templates.length === 0) {
+                list.innerHTML = '<div class="bg-white rounded-xl shadow-sm p-6 text-center"><div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fa fa-folder text-gray-400 text-2xl"></i></div><p class="text-gray-400">暂无保存的模板</p></div>';
+                return;
+            }
+            
+            list.innerHTML = templates.map((item, i) => `
+                <div class="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-semibold text-gray-800">${item.name}</h3>
+                            <p class="text-sm text-gray-500">${item.date} · ${item.type}</p>
+                        </div>
+                        <button class="text-sm text-red-500 hover:text-red-600" onclick="deleteTemplate(${i})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.showDocument = function(index, type) {
+            const history = loadHistory();
+            const item = history[index];
+            const content = item[type];
+            
+            document.querySelector('.nav-item.active').classList.remove('active');
+            document.querySelector('[data-tab="response"]').classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.getElementById('responseTab').classList.remove('hidden');
+            
+            document.getElementById('responseContent').innerHTML = `<div class="bg-white rounded-xl shadow-sm p-8">${renderMarkdown(content)}</div>`;
+        };
+
+        window.saveAsTemplate = function(index) {
+            const history = loadHistory();
+            const item = history[index];
+            const name = prompt('请输入模板名称:', `${item.equipment}报价单`);
+            
+            if (name) {
+                saveTemplate(name, item.quotation, '报价单');
+                alert('✅ 模板保存成功！');
+            }
+        };
+
+        window.deleteTemplate = function(index) {
+            const templates = loadTemplates();
+            templates.splice(index, 1);
+            localStorage.setItem('templates', JSON.stringify(templates));
+            loadTemplatesUI();
+        };
+
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const activeTab = document.querySelector('.nav-item.active').dataset.tab;
+            const content = document.getElementById(`${activeTab}Content`).innerText;
+            
+            navigator.clipboard.writeText(content).then(() => {
+                alert('✅ 内容已复制到剪贴板！');
+            });
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            const activeTab = document.querySelector('.nav-item.active').dataset.tab;
+            const content = document.getElementById(`${activeTab}Content`).innerText;
+            const blob = new Blob([content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `document_${Date.now()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadHistoryUI();
+            loadTemplatesUI();
+        });
+    </script>
+</body>
+</html>
