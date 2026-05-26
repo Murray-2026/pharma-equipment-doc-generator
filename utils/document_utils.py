@@ -177,12 +177,19 @@ def fill_template(uploaded_file, equipment_type, regulations, requirements=None)
         "{日期}": date_str
     }
     
+    st.write(f"📝 检测到模板文件: {filename}")
+    st.write(f"📊 文件类型: {file_type}")
+    st.write(f"🔄 准备替换的占位符: {list(placeholders.keys())}")
+    
     # 处理不同文件类型
     if file_type in ["docx", "doc"]:
+        uploaded_file.seek(0)
         return fill_word_template(uploaded_file, placeholders)
     elif file_type in ["xlsx", "xls"]:
+        uploaded_file.seek(0)
         return fill_excel_template(uploaded_file, placeholders)
     else:
+        uploaded_file.seek(0)
         return fill_text_template(uploaded_file, placeholders)
 
 
@@ -190,26 +197,39 @@ def fill_word_template(uploaded_file, placeholders):
     from docx import Document
     from io import BytesIO
     
+    st.write("🔧 开始处理Word文档...")
+    
     doc = Document(uploaded_file)
+    
+    replaced_count = 0
     
     # 替换段落中的占位符
     for paragraph in doc.paragraphs:
+        original_text = paragraph.text
         for placeholder, value in placeholders.items():
-            if placeholder in paragraph.text:
-                for run in paragraph.runs:
-                    if placeholder in run.text:
-                        run.text = run.text.replace(placeholder, value)
+            if placeholder in original_text:
+                # 直接替换整个段落文本
+                new_text = original_text.replace(placeholder, value)
+                if new_text != original_text:
+                    paragraph.text = new_text
+                    replaced_count += 1
+                    st.write(f"✅ 段落中替换 '{placeholder}' -> '{value[:30]}...'")
     
     # 替换表格中的占位符
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
+                    original_text = paragraph.text
                     for placeholder, value in placeholders.items():
-                        if placeholder in paragraph.text:
-                            for run in paragraph.runs:
-                                if placeholder in run.text:
-                                    run.text = run.text.replace(placeholder, value)
+                        if placeholder in original_text:
+                            new_text = original_text.replace(placeholder, value)
+                            if new_text != original_text:
+                                paragraph.text = new_text
+                                replaced_count += 1
+                                st.write(f"✅ 表格中替换 '{placeholder}' -> '{value[:30]}...'")
+    
+    st.write(f"📊 总共替换了 {replaced_count} 处占位符")
     
     output_buffer = BytesIO()
     doc.save(output_buffer)
@@ -226,13 +246,23 @@ def fill_excel_template(uploaded_file, placeholders):
     import pandas as pd
     from io import BytesIO
     
+    st.write("🔧 开始处理Excel文档...")
+    
     df = pd.read_excel(uploaded_file)
+    
+    replaced_count = 0
     
     # 替换数据框中的占位符
     for col in df.columns:
         df[col] = df[col].astype(str)
         for placeholder, value in placeholders.items():
-            df[col] = df[col].str.replace(placeholder, value)
+            original_count = df[col].str.contains(placeholder).sum()
+            if original_count > 0:
+                df[col] = df[col].str.replace(placeholder, value)
+                replaced_count += original_count
+                st.write(f"✅ 列 '{col}' 中替换 '{placeholder}' -> '{value[:30]}...' ({original_count}处)")
+    
+    st.write(f"📊 总共替换了 {replaced_count} 处占位符")
     
     output_buffer = BytesIO()
     with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
@@ -248,10 +278,21 @@ def fill_excel_template(uploaded_file, placeholders):
 
 
 def fill_text_template(uploaded_file, placeholders):
+    st.write("🔧 开始处理文本文档...")
+    
     text = uploaded_file.read().decode("utf-8")
+    replaced_count = 0
+    
+    st.write(f"📝 原始文本长度: {len(text)} 字符")
     
     for placeholder, value in placeholders.items():
-        text = text.replace(placeholder, value)
+        count = text.count(placeholder)
+        if count > 0:
+            text = text.replace(placeholder, value)
+            replaced_count += count
+            st.write(f"✅ 替换 '{placeholder}' -> '{value[:30]}...' ({count}处)")
+    
+    st.write(f"📊 总共替换了 {replaced_count} 处占位符")
     
     output_buffer = BytesIO()
     output_buffer.write(text.encode("utf-8"))

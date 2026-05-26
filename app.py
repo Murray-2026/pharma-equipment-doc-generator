@@ -85,8 +85,12 @@ def main():
             "报价单模板": "quotation"
         }[template_type]
         
+        uploaded_template.seek(0)
+        file_content = uploaded_template.read()
+        
         st.session_state.custom_template_files[template_key] = uploaded_template
-        st.session_state.custom_templates[template_key] = uploaded_template.read()
+        st.session_state.custom_templates[template_key] = file_content
+        
         uploaded_template.seek(0)
         
         st.sidebar.success(f"✅ {template_type}已上传")
