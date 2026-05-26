@@ -151,8 +151,28 @@ def show_urs_processing():
 def show_quick_quotation():
     st.markdown("### 💰 快速报价单生成")
     
-    col1, col2 = st.columns([1, 1])
+    st.markdown("#### 基本信息")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        quote_number = st.text_input("报价单编号", value=f"QT-{datetime.now().strftime('%Y%m')}-{str(hash(datetime.now())).strip('-')[:3]}", key="quote_number")
+    with col2:
+        quote_date = st.date_input("日期", value=datetime.now(), key="quote_date")
+    with col3:
+        valid_until = st.date_input("有效期至", key="quote_valid_until")
+    with col4:
+        contact_person = st.text_input("联系人", key="quote_contact")
     
+    st.markdown("#### 客户与供应商信息")
+    col1, col2 = st.columns(2)
+    with col1:
+        customer_name = st.text_input("客户名称", key="quote_customer")
+        project_name = st.text_input("项目名称", key="quote_project")
+    with col2:
+        supplier_name = st.text_input("供应商名称", value="XX隔离器技术有限公司", key="quote_supplier")
+        equipment_model = st.text_input("设备型号", key="quote_model")
+    
+    st.markdown("#### 设备与法规信息")
+    col1, col2, col3 = st.columns(3)
     with col1:
         equipment_type = st.selectbox(
             "设备类型",
@@ -160,28 +180,47 @@ def show_quick_quotation():
             index=0,
             key="quote_equipment"
         )
-        
-        regulations = st.multiselect(
-            "法规标准",
-            ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "WHO GMP", "PIC/S GMP"],
-            default=["中国GMP 2010版"],
-            key="quote_regulations"
-        )
-        
+    with col2:
         config_level = st.select_slider(
             "配置等级",
             options=["基础", "标准", "高级"],
             value="标准",
             key="quote_config"
         )
+    with col3:
+        regulations = st.multiselect(
+            "适用法规",
+            ["中国GMP", "FDA 21 CFR", "EU GMP Annex 1", "WHO GMP", "PIC/S"],
+            default=["中国GMP", "EU GMP Annex 1", "WHO GMP"],
+            key="quote_regulations"
+        )
     
+    st.markdown("#### 技术参数确认")
+    with st.expander("展开技术参数", expanded=False):
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            inner_dimensions = st.text_input("内部尺寸", value="L600×D600×H600mm", key="tech_dimensions")
+        with col2:
+            vhp_concentration = st.text_input("VHP浓度范围", value="2-6 mg/L", key="tech_vhp")
+        with col3:
+            sterilization_time = st.text_input("灭菌时间", value="60-120min", key="tech_time")
+        with col4:
+            temperature_range = st.text_input("灭菌温度范围", value="25-45°C", key="tech_temp")
+    
+    st.markdown("#### 服务选项")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        include_installation = st.checkbox("包含安装调试", value=True, key="service_install")
     with col2:
-        customer_name = st.text_input("客户名称")
-        project_name = st.text_input("项目名称")
-        contact_person = st.text_input("联系人")
+        include_validation = st.checkbox("包含IQ/OQ/PQ验证", value=True, key="service_validation")
+    with col3:
+        include_training = st.checkbox("包含技术培训", value=True, key="service_training")
     
     if st.button("✨ 一键生成报价单", type="primary", use_container_width=True):
-        generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person)
+        generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person,
+                          quote_number, quote_date, valid_until, supplier_name, equipment_model,
+                          inner_dimensions, vhp_concentration, sterilization_time, temperature_range,
+                          include_installation, include_validation, include_training)
 
 def show_history():
     st.markdown("### 📊 历史记录")
@@ -321,77 +360,136 @@ def generate_urs_response(equipment_type, regulations, requirements, urs_text):
     
     save_to_history("URS回复", equipment_type, regulations, content=content)
 
-def generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person):
+def generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person,
+                      quote_number="", quote_date=datetime.now(), valid_until=None, supplier_name="XX隔离器技术有限公司", 
+                      equipment_model="", inner_dimensions="", vhp_concentration="", sterilization_time="", 
+                      temperature_range="", include_installation=True, include_validation=True, include_training=True):
+    
     prices = {
-        "单体无菌隔离器": {"基础": 300000, "标准": 500000, "高级": 800000},
-        "VHP传递窗": {"基础": 150000, "标准": 250000, "高级": 400000},
-        "整线隔离器": {"基础": 1500000, "标准": 2500000, "高级": 4000000},
-        "单体负压隔离器": {"基础": 400000, "标准": 600000, "高级": 1000000}
+        "单体无菌隔离器": {"基础": [80, 150], "标准": [100, 200], "高级": [180, 320]},
+        "VHP传递窗": {"基础": [30, 60], "标准": [40, 80], "高级": [80, 150]},
+        "整线隔离器": {"基础": [300, 600], "标准": [400, 800], "高级": [700, 1500]},
+        "单体负压隔离器": {"基础": [100, 200], "标准": [120, 250], "高级": [250, 450]}
     }
     
-    price = prices[equipment_type][config_level]
-    tax = price * 0.13
-    total = price + tax
+    price_range = prices[equipment_type][config_level]
+    base_price = (price_range[0] + price_range[1]) / 2
     
-    doc_number = datetime.now().strftime("%Y%m%d")
+    quote_date_str = quote_date.strftime("%Y-%m-%d") if hasattr(quote_date, 'strftime') else str(quote_date)
+    valid_until_str = valid_until.strftime("%Y-%m-%d") if valid_until else ""
     
-    content = f"""# {equipment_type} - 报价单
-
-**报价编号**: PHARMA-QUOTE-{doc_number}
-**报价日期**: {datetime.now().strftime("%Y年%m月%d日")}
-**有效期**: 30天
+    content = f"""# 快速报价单
+## Quick Quotation
 
 ---
 
-## 客户信息
+## 报价单信息
 
 | 项目 | 内容 |
 |------|------|
-| 客户名称 | {customer_name} |
-| 项目名称 | {project_name} |
-| 联系人 | {contact_person} |
+| 报价单编号 | {quote_number} |
+| 日期 | {quote_date_str} |
+| 有效期至 | {valid_until_str} |
+| 客户名称 | {customer_name or '待填写'} |
+| 项目名称 | {project_name or '待填写'} |
+| 供应商 | {supplier_name} |
 | 设备类型 | {equipment_type} |
-| 配置等级 | {config_level} |
+| 设备型号 | {equipment_model or 'VHP Pass-Through (Airlock) Chamber'} |
 | 适用法规 | {', '.join(regulations)} |
 
 ---
 
-## 报价明细
+## A. 设备概述
 
-| 项目 | 金额（元） |
-|------|------------|
-| 设备主机 | ¥{price:,} |
-| 标准配件 | ¥{int(price * 0.15):,} |
-| 运输保险 | ¥{int(price * 0.03):,} |
-| 安装调试 | ¥{int(price * 0.08):,} |
-| 培训服务 | ¥{int(price * 0.02):,} |
-| **小计** | **¥{int(price * 1.28):,}** |
-| 增值税(13%) | ¥{int(tax):,} |
-| **总计** | **¥{int(total * 1.28):,}** |
+{equipment_type}是一种基于汽化过氧化氢（VHP）灭菌原理的物料传递设备，用于洁净区与非洁净区（或不同洁净等级区域）之间的物料、工具传递。设备采用双门互锁安全设计，配置集成式VHP发生器，灭菌循环可编程控制（除湿-灭菌-排残-通风），灭菌效果达到SAL 10⁻⁶，残气经催化分解后H₂O₂残留浓度<1ppm，保障操作人员安全，适用于制药企业物料、工器具、耗材的在线灭菌传递。
+
+### 系统描述
+
+**工作原理**: {equipment_type}传递窗由两个互锁舱室组成，操作时仅一侧门可开启。物料放入后关闭门，启动VHP灭菌循环（除湿→灭菌→排残）。VHP通过雾化过氧化氢，均匀分布整个舱室，完成后经催化分解残气至安全浓度，方可开启对侧门取出物料。双门互锁系统确保两侧门不同时开启，防止交叉污染。
 
 ---
 
-## 配置清单
+## B. 关键技术参数
 
-**{config_level}配置包含**:
-- 主机系统 ×1
-- HEPA过滤器 ×2
-- 备用手套 ×2副
+| 参数项目 | 标准配置 | 高级配置 |
+|----------|----------|----------|
+| 传递舱内尺寸 | {inner_dimensions or 'L600×D600×H600mm'} | L800×D800×H800mm |
+| VHP浓度范围 | {vhp_concentration or '2-6 mg/L'} | 2-8 mg/L |
+| 灭菌时间 | {sterilization_time or '60-120min'} | 60-180min |
+| 灭菌温度范围 | {temperature_range or '25-45°C'} | 25-50°C |
+| 灭菌效果 | SAL 10⁻⁶ | SAL 10⁻⁶ |
+| 残气浓度 | <1ppm | <1ppm |
+| 双门互锁 | 机械+电气联锁 | 机械+PLC三重联锁 |
+| 内壁材质 | 316L不锈钢 Ra≤0.4μm | 316L不锈钢 Ra≤0.4μm |
+| 控制系统 | PLC+7寸触摸屏 | PLC+SCADA+10寸触摸屏 |
+| 数据记录 | 数据自动记录 | 完整审计追踪记录 |
+
+---
+
+## C. 报价明细
+
+### C.1 {config_level}方案报价
+
+| 序号 | 项目 | 金额（万元） | 备注 |
+|------|------|--------------|------|
+| 1 | 设备本体 | {base_price * 0.7:.1f} | 含主体结构、手套、视窗等 |
+| 2 | 安装调试 | {base_price * 0.08:.1f if include_installation else 0} | 含现场安装、调试、开机验证 |
+| 3 | 验证服务（IQ/OQ/PQ） | {base_price * 0.1:.1f if include_validation else 0} | 含验证方案编制及执行 |
+| 4 | 培训服务 | {base_price * 0.02:.1f if include_training else 0} | 操作+维护培训，{3 if config_level == '标准' else 5}天 |
+| 5 | 备件包（首年） | {base_price * 0.02:.1f} | 易损件及推荐备件 |
+| 6 | 技术文件包 | {base_price * 0.02:.1f} | 含手册、图纸、证书 |
+| 7 | 国内运输+保险 | {base_price * 0.06:.1f} | 含运输一切险 |
+| 8 | **{config_level}方案合计** | **{(base_price * 1.1).round(1)}** | 含13%增值税 |
+
+---
+
+## D. 配置清单
+
+### {config_level}配置包含:
+- {equipment_type}主机系统 ×1
+- HEPA过滤器（H14级） ×2
+- 备用手套（丁腈） ×2副
 - 专用工具包 ×1
-- 操作手册 ×1
-- 验证文件包 ×1
+- 操作手册（中文/英文） ×1
+- 验证文件包（IQ/OQ/PQ） ×1
+- 备件清单及报价 ×1
 
 ---
 
-## 商务条款
+## E. 交货周期
 
-- **付款方式**: 预付款30%，发货款60%，质保金10%
-- **交货期**: 收到预付款后45-60天
-- **质保期**: 12个月
+| 方案 | 预计周期 | 说明 |
+|------|----------|------|
+| {config_level}方案 | {16 if config_level == '标准' else 20}-28周 | 自合同签订及预付款到账之日起计算；含额外系统集成交付与调试时间 |
 
-**报价单位**: [贵公司名称]
-**联系人**: [联系人姓名]
-**联系电话**: [联系电话]
+> *交货周期受客户现场准备情况影响，如现场不具备安装条件可能相应顺延。
+
+---
+
+## F. 售后服务条款
+
+| 项目 | 标准方案 | 高级方案 |
+|------|----------|----------|
+| 质保期 | 12个月（自SAT验收签署之日起） | 24个月（自SAT验收签署之日起） |
+| 远程响应时间 | 48小时内 | 24小时内 |
+| 现场响应时间 | 48小时内 | 24小时内 |
+| 年度保养 | 1次/年 | 2次/年 |
+| 软件升级 | 质保期内免费 | 质保期内免费+质保期后3年优惠 |
+| 设备备件 | 设备停产10年 | 设备停产10年 |
+| 技术培训 | 3天（操作+维护） | 5天（操作+维护+验证） |
+
+---
+
+## 声明
+
+1. 本报价有效期为30天，逾期价格可能调整。
+2. 本报价不含土建、公用工程接口以外的工作。
+3. 最终价格以双方签订的正式合同为准。
+4. 如客户有重大变更，供应商保留调整报价的权利。
+
+**报价单位**: {supplier_name}  
+**联系人**: {contact_person or '待填写'}  
+**日期**: {quote_date_str}
 """
     
     st.session_state.generated_documents = {"quotation": content}
