@@ -224,13 +224,13 @@ def show_customers():
                     st.markdown(f"**备注**: {customer.get('notes', '')}")
     
     with tab2:
-        name = st.text_input("客户名称")
-        contact = st.text_input("联系人")
-        phone = st.text_input("联系电话")
-        email = st.text_input("邮箱")
-        notes = st.text_area("备注")
+        name = st.text_input("客户名称", key="customer_name")
+        contact = st.text_input("联系人", key="customer_contact")
+        phone = st.text_input("联系电话", key="customer_phone")
+        email = st.text_input("邮箱", key="customer_email")
+        notes = st.text_area("备注", key="customer_notes")
         
-        if st.button("保存客户", type="primary"):
+        if st.button("保存客户", type="primary", key="save_customer_btn"):
             customer = {
                 "name": name,
                 "contact": contact,
