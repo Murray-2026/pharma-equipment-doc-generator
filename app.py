@@ -2,14 +2,30 @@ import streamlit as st
 import os
 from io import BytesIO
 from datetime import datetime
+import json
 from utils.document_utils import parse_uploaded_file, extract_requirements, fill_template
 
 st.set_page_config(
-    page_title="制药设备售前文档生成器",
+    page_title="制药隔离器售前文档生成器",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+def load_from_local_storage(key, default=None):
+    try:
+        data = st.session_state.get(f"local_{key}")
+        if data is None:
+            data_str = st.query_params.get(key)
+            if data_str:
+                data = json.loads(data_str)
+                st.session_state[f"local_{key}"] = data
+        return data if data is not None else default
+    except:
+        return default
+
+def save_to_local_storage(key, value):
+    st.session_state[f"local_{key}"] = value
 
 def init_session_state():
     if "generated_documents" not in st.session_state:
@@ -30,340 +46,380 @@ def init_session_state():
             "technical_spec": None,
             "quotation": None
         }
+    if "history" not in st.session_state:
+        saved_history = load_from_local_storage("history", [])
+        st.session_state.history = saved_history
+    if "customers" not in st.session_state:
+        saved_customers = load_from_local_storage("customers", [])
+        st.session_state.customers = saved_customers
+    if "templates" not in st.session_state:
+        saved_templates = load_from_local_storage("templates", {})
+        st.session_state.templates = saved_templates
 
 def main():
     init_session_state()
     
-    st.title("🏭 制药设备售前文档生成器")
+    st.title("🏭 制药隔离器售前文档生成器")
     st.markdown("---")
     
-    st.sidebar.title("配置")
+    tabs = st.tabs(["📝 URS处理", "💰 快速报价", "📊 历史记录", "👥 客户档案", "📁 模板库"])
     
-    st.sidebar.subheader("设备类型")
-    equipment_type = st.sidebar.selectbox(
-        "选择设备类型",
-        ["单体无菌隔离器", "VHP传递窗", "整线隔离器", "单体负压隔离器"],
-        index=0
-    )
+    with tabs[0]:
+        show_urs_processing()
     
-    st.sidebar.subheader("法规标准（可多选）")
-    regulations = st.sidebar.multiselect(
-        "选择适用的法规标准",
-        ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "PIC/S GMP", "ISO 14644", "GAMP 5"],
-        default=["中国GMP 2010版"],
-        help="可以选择多个法规标准，生成的文档将涵盖所有选中的合规要求"
-    )
+    with tabs[1]:
+        show_quick_quotation()
     
-    regulation_text = ", ".join(regulations) if regulations else "中国GMP 2010版"
+    with tabs[2]:
+        show_history()
     
-    st.sidebar.subheader("📁 自定义模板")
-    st.sidebar.markdown("上传您自己的文档模板（支持Excel/Word/Markdown格式）")
-    st.sidebar.markdown("**支持的占位符：**")
-    st.sidebar.markdown("- {设备类型} - 设备类型")
-    st.sidebar.markdown("- {法规标准} - 法规标准（逗号分隔）")
-    st.sidebar.markdown("- {生成日期} - 生成日期")
-    st.sidebar.markdown("- {年份} - 当前年份")
-    st.sidebar.markdown("- {URS文档编号} - URS文档编号")
-    st.sidebar.markdown("- {技术文档编号} - 技术文档编号")
-    st.sidebar.markdown("- {报价文档编号} - 报价文档编号")
-    st.sidebar.markdown("- {关键需求点} - 关键需求点（以换行分隔）")
+    with tabs[3]:
+        show_customers()
     
-    template_type = st.sidebar.selectbox(
-        "选择模板类型",
-        ["URS回复模板", "技术方案模板", "报价单模板"]
-    )
+    with tabs[4]:
+        show_templates()
+
+def show_urs_processing():
+    st.markdown("### 📝 URS智能解析与逐条回复")
     
-    uploaded_template = st.sidebar.file_uploader(
-        "上传自定义模板",
-        type=["xlsx", "xls", "docx", "md", "txt"]
-    )
+    col1, col2 = st.columns([1, 1])
     
-    if uploaded_template is not None:
-        template_key = {
-            "URS回复模板": "urs_response",
-            "技术方案模板": "technical_spec",
-            "报价单模板": "quotation"
-        }[template_type]
+    with col1:
+        st.markdown("#### 选择设备类型")
+        equipment_type = st.selectbox(
+            "设备类型",
+            ["单体无菌隔离器", "VHP传递窗", "整线隔离器", "单体负压隔离器"],
+            index=0,
+            key="urs_equipment"
+        )
         
-        uploaded_template.seek(0)
-        file_content = uploaded_template.read()
-        
-        st.session_state.custom_template_files[template_key] = uploaded_template
-        st.session_state.custom_templates[template_key] = file_content
-        
-        uploaded_template.seek(0)
-        
-        st.sidebar.success(f"✅ {template_type}已上传")
+        st.markdown("#### 选择法规体系（可多选）")
+        regulations = st.multiselect(
+            "法规标准",
+            ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "WHO GMP", "PIC/S GMP"],
+            default=["中国GMP 2010版"],
+            key="urs_regulations"
+        )
     
-    if st.sidebar.button("使用默认模板"):
-        st.session_state.custom_templates = {
-            "urs_response": None,
-            "technical_spec": None,
-            "quotation": None
-        }
-        st.session_state.custom_template_files = {
-            "urs_response": None,
-            "technical_spec": None,
-            "quotation": None
-        }
-        st.sidebar.success("已切换到默认模板")
-    
-    st.markdown("### 步骤 1: 输入或上传URS文档")
-    
-    tab1, tab2 = st.tabs(["📝 直接输入URS文本", "📁 上传文档"])
-    
-    with tab1:
-        st.markdown("#### 请输入客户的URS（用户需求说明）")
-        st.markdown("您可以直接粘贴或输入完整的URS文本内容，系统将智能解析并生成详细的逐条响应")
+    with col2:
+        st.markdown("#### URS文档输入")
         urs_input = st.text_area(
-            "URS文本内容",
-            value=st.session_state.urs_text,
-            height=300,
-            placeholder="请在此输入或粘贴客户的URS文档内容...\n\n例如：\n## 1. 概述\n本URS定义了无菌隔离器的技术要求，适用于注射剂无菌生产环境...\n\n## 2. 适用范围\n本URS适用于新建无菌车间的隔离器系统...\n\n## 3. 设备要求\n3.1 设备类型：单体无菌隔离器\n3.2 工作舱尺寸：不小于1200×800×1000mm（长×宽×高）\n3.3 材质要求：与产品接触部分为316L不锈钢\n\n## 4. 法规要求\n符合中国GMP 2010版附录1无菌药品要求...",
-            help="支持任意长度的文本输入，系统将自动解析关键需求点"
+            "粘贴URS内容",
+            height=200,
+            placeholder="粘贴客户URS文档内容...\n\n例如：\n1. 设备要求：单体无菌隔离器\n2. 尺寸要求：1200×800×1000mm\n3. 法规要求：符合中国GMP",
+            key="urs_text_input"
         )
-        st.session_state.urs_text = urs_input
-    
-    with tab2:
+        
         uploaded_file = st.file_uploader(
-            "上传客户询盘或URS文档（PDF/Word/Excel/文本）",
-            type=["pdf", "docx", "doc", "xlsx", "xls", "txt"]
+            "或上传URS文件（PDF/Word/Excel/TXT）",
+            type=["pdf", "docx", "xlsx", "txt"]
         )
-        if uploaded_file is not None:
-            st.success(f"已成功上传文件: {uploaded_file.name}")
-            with st.spinner("正在解析文档..."):
-                text, _ = parse_uploaded_file(uploaded_file)
-                st.session_state.urs_text = text
+        if uploaded_file:
+            text, _ = parse_uploaded_file(uploaded_file)
+            urs_input = text
     
-    requirements = None
-    
-    if st.session_state.urs_text.strip():
+    if urs_input.strip():
         with st.spinner("正在智能解析URS..."):
-            requirements = extract_requirements(st.session_state.urs_text)
+            requirements = extract_requirements(urs_input)
         
         st.markdown("---")
         st.markdown("### 🤖 智能解析结果")
         
-        col1, col2 = st.columns([1, 1])
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.subheader("📦 设备类型识别")
+            st.subheader("📦 设备类型")
             if requirements["equipment_type"]:
-                st.success(f"✅ 检测到设备类型: **{requirements['equipment_type']}**")
-                if requirements["equipment_type"] != equipment_type:
-                    if st.button(f"使用检测到的设备类型: {requirements['equipment_type']}"):
-                        st.success("设备类型已更新，请刷新页面")
+                st.success(f"✅ 检测到: **{requirements['equipment_type']}**")
             else:
-                st.info("💡 未检测到明确的设备类型，请在左侧手动选择")
-            
-            st.subheader("📋 合规要求提取")
-            if requirements["compliance"]:
-                st.markdown("**检测到以下合规要求：**")
-                for i, req in enumerate(requirements["compliance"], 1):
-                    st.markdown(f"{i}. {req}")
-            else:
-                st.info("未提取到明确的合规要求")
+                st.info(f"当前选择: **{equipment_type}**")
         
         with col2:
-            st.subheader("⚙️ 技术规格提取")
-            if requirements["specifications"]:
-                st.markdown("**检测到以下技术规格：**")
-                for i, spec in enumerate(requirements["specifications"], 1):
-                    st.markdown(f"{i}. {spec}")
+            st.subheader("📋 合规要求")
+            if requirements["compliance"]:
+                st.markdown(f"检测到 {len(requirements['compliance'])} 条合规要求")
             else:
-                st.info("未提取到明确的技术规格")
-            
-            st.subheader("🎯 关键需求点")
-            if requirements["key_points"]:
-                st.markdown("**检测到以下关键需求：**")
-                for i, point in enumerate(requirements["key_points"], 1):
-                    st.markdown(f"{i}. {point}")
-            else:
-                st.info("未提取到明确的需求点")
+                st.info(f"已选法规: {', '.join(regulations)}")
         
-        with st.expander("📄 查看完整URS内容"):
-            st.text_area("完整内容", st.session_state.urs_text, height=200)
+        with col3:
+            st.subheader("🎯 关键需求")
+            st.markdown(f"提取到 {len(requirements['key_points'])} 条关键需求")
+        
+        if st.button("📄 生成URS逐条回复", type="primary", use_container_width=True):
+            generate_urs_response(equipment_type, regulations, requirements, urs_input)
+
+def show_quick_quotation():
+    st.markdown("### 💰 快速报价单生成")
     
-    st.markdown("---")
-    st.markdown("### 步骤 2: 生成文档")
-    
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns([1, 1])
     
     with col1:
-        template_used = "自定义" if st.session_state.custom_template_files["urs_response"] else "默认"
-        if st.button(f"📄 生成URS逐条回复 ({template_used})", use_container_width=True):
-            from utils.generator import DocumentGenerator
-            with st.spinner("正在生成URS逐条回复..."):
-                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                
-                if st.session_state.custom_template_files["urs_response"]:
-                    filled_file = fill_template(
-                        st.session_state.custom_template_files["urs_response"],
-                        equipment_type,
-                        regulations,
-                        requirements
-                    )
-                    st.session_state.generated_documents = {
-                        "urs_response_custom": filled_file
-                    }
-                else:
-                    st.session_state.generated_documents = {
-                        "urs_response": generator.generate_urs_response(requirements)
-                    }
-            st.success("URS逐条回复生成成功！")
+        equipment_type = st.selectbox(
+            "设备类型",
+            ["单体无菌隔离器", "VHP传递窗", "整线隔离器", "单体负压隔离器"],
+            index=0,
+            key="quote_equipment"
+        )
+        
+        regulations = st.multiselect(
+            "法规标准",
+            ["中国GMP 2010版", "FDA 21 CFR Part 11", "EU GMP Annex 1", "WHO GMP", "PIC/S GMP"],
+            default=["中国GMP 2010版"],
+            key="quote_regulations"
+        )
+        
+        config_level = st.select_slider(
+            "配置等级",
+            options=["基础", "标准", "高级"],
+            value="标准",
+            key="quote_config"
+        )
     
     with col2:
-        template_used = "自定义" if st.session_state.custom_template_files["technical_spec"] else "默认"
-        if st.button(f"📋 生成技术方案 ({template_used})", use_container_width=True):
-            from utils.generator import DocumentGenerator
-            with st.spinner("正在生成技术方案..."):
-                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                
-                if st.session_state.custom_template_files["technical_spec"]:
-                    filled_file = fill_template(
-                        st.session_state.custom_template_files["technical_spec"],
-                        equipment_type,
-                        regulations,
-                        requirements
-                    )
-                    st.session_state.generated_documents = {
-                        "technical_spec_custom": filled_file
-                    }
-                else:
-                    st.session_state.generated_documents = {
-                        "technical_spec": generator.generate_technical_spec()
-                    }
-            st.success("技术方案生成成功！")
+        customer_name = st.text_input("客户名称")
+        project_name = st.text_input("项目名称")
+        contact_person = st.text_input("联系人")
     
-    with col3:
-        template_used = "自定义" if st.session_state.custom_template_files["quotation"] else "默认"
-        if st.button(f"💰 生成报价文档 ({template_used})", use_container_width=True):
-            from utils.generator import DocumentGenerator
-            with st.spinner("正在生成报价文档..."):
-                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                
-                if st.session_state.custom_template_files["quotation"]:
-                    filled_file = fill_template(
-                        st.session_state.custom_template_files["quotation"],
-                        equipment_type,
-                        regulations,
-                        requirements
-                    )
-                    st.session_state.generated_documents = {
-                        "quotation_custom": filled_file
-                    }
-                else:
-                    st.session_state.generated_documents = {
-                        "quotation_basic": generator.generate_quotation("basic"),
-                        "quotation_standard": generator.generate_quotation("standard"),
-                        "quotation_premium": generator.generate_quotation("premium")
-                    }
-            st.success("报价文档生成成功！")
+    if st.button("✨ 一键生成报价单", type="primary", use_container_width=True):
+        generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person)
+
+def show_history():
+    st.markdown("### 📊 历史记录")
     
-    if st.button("✨ 一键生成全部文档", type="primary", use_container_width=True):
-        from utils.generator import DocumentGenerator
-        with st.spinner("正在生成全套文档..."):
-            generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-            st.session_state.generated_documents = generator.generate_all_documents(requirements)
-        st.success("全套文档生成成功！")
+    if not st.session_state.history:
+        st.info("暂无历史记录")
+        return
     
-    if st.session_state.generated_documents:
-        st.markdown("---")
-        st.markdown("### 步骤 3: 预览和下载")
-        
-        doc_types = list(st.session_state.generated_documents.keys())
-        
-        if len(doc_types) > 1:
-            selected_doc = st.selectbox(
-                "选择要预览的文档",
-                doc_types,
-                format_func=lambda x: {
-                    "urs_response": "📄 URS逐条回复",
-                    "technical_spec": "📋 技术方案",
-                    "quotation_basic": "💰 报价单（基础配置）",
-                    "quotation_standard": "💰 报价单（标准配置）",
-                    "quotation_premium": "💰 报价单（高级配置）",
-                    "urs_response_custom": "📄 URS逐条回复（自定义模板）",
-                    "technical_spec_custom": "📋 技术方案（自定义模板）",
-                    "quotation_custom": "💰 报价单（自定义模板）"
-                }.get(x, x)
-            )
-        else:
-            selected_doc = doc_types[0]
-        
-        content = st.session_state.generated_documents[selected_doc]
-        
-        if isinstance(content, dict) and "file" in content:
-            with st.expander("📖 预览文档内容", expanded=True):
-                st.info("自定义模板文档已生成，请直接下载查看！")
-            
-            st.markdown("#### 📥 下载文档")
-            
-            filename = content["filename"]
-            mime_type = content["mime_type"]
-            
-            st.download_button(
-                label=f"下载 {filename}",
-                data=content["file"],
-                file_name=filename,
-                mime=mime_type,
-                use_container_width=True
-            )
-        else:
-            with st.expander("📖 预览文档内容", expanded=True):
-                st.markdown(content)
-            
-            st.markdown("#### 📥 下载文档")
-            
+    for i, record in enumerate(reversed(st.session_state.history), 1):
+        with st.expander(f"📄 {record['type']} - {record['equipment']} - {record['date']}"):
             col1, col2 = st.columns(2)
-            
             with col1:
-                filename = f"{selected_doc}.md"
-                st.download_button(
-                    label="📝 下载 Markdown 格式",
-                    data=content.encode("utf-8"),
-                    file_name=filename,
-                    mime="text/markdown",
-                    use_container_width=True
-                )
-            
+                st.markdown(f"**客户**: {record.get('customer', '未知')}")
+                st.markdown(f"**法规**: {record.get('regulations', '')}")
             with col2:
-                from utils.generator import DocumentGenerator
-                generator = DocumentGenerator(equipment_type, regulation_text, st.session_state.custom_templates, regulations)
-                doc_buffer = BytesIO()
-                try:
-                    import tempfile
-                    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-                        doc_path = generator.create_word_document(content, os.path.basename(tmp.name), os.path.dirname(tmp.name))
-                        with open(doc_path, "rb") as f:
-                            doc_buffer.write(f.read())
-                        os.unlink(doc_path)
-                    
-                    doc_buffer.seek(0)
-                    filename = f"{selected_doc}.docx"
-                    st.download_button(
-                        label="📄 下载 Word 格式 (.docx)",
-                        data=doc_buffer.getvalue(),
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
-                except Exception as e:
-                    st.error(f"生成Word文档时出错: {e}")
+                st.markdown(f"**配置**: {record.get('config', '标准')}")
+                st.markdown(f"**金额**: {record.get('amount', '')}")
+            
+            if "content" in record:
+                st.download_button(
+                    "下载文档",
+                    data=record["content"].encode("utf-8"),
+                    file_name=f"document_{i}.md"
+                )
+
+def show_customers():
+    st.markdown("### 👥 客户档案")
     
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 关于")
-    st.sidebar.info("制药设备售前文档生成器 v1.0")
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 使用说明")
-    st.sidebar.markdown("""
-    1. 选择设备类型和法规标准（可多选）
-    2. （可选）上传自定义模板（支持Excel/Word/Markdown）
-    3. 输入URS文本或上传文档
-    4. 系统自动智能解析关键需求
-    5. 生成所需文档
-    6. 预览并下载文档
-    """)
+    tab1, tab2 = st.tabs(["客户列表", "新建客户"])
+    
+    with tab1:
+        if not st.session_state.customers:
+            st.info("暂无客户档案")
+        else:
+            for customer in st.session_state.customers:
+                with st.expander(f"🏢 {customer['name']}"):
+                    st.markdown(f"**联系人**: {customer.get('contact', '')}")
+                    st.markdown(f"**电话**: {customer.get('phone', '')}")
+                    st.markdown(f"**邮箱**: {customer.get('email', '')}")
+                    st.markdown(f"**备注**: {customer.get('notes', '')}")
+    
+    with tab2:
+        name = st.text_input("客户名称")
+        contact = st.text_input("联系人")
+        phone = st.text_input("联系电话")
+        email = st.text_input("邮箱")
+        notes = st.text_area("备注")
+        
+        if st.button("保存客户", type="primary"):
+            customer = {
+                "name": name,
+                "contact": contact,
+                "phone": phone,
+                "email": email,
+                "notes": notes,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+            }
+            st.session_state.customers.append(customer)
+            save_to_local_storage("customers", st.session_state.customers)
+            st.success("客户保存成功")
+
+def show_templates():
+    st.markdown("### 📁 模板库")
+    
+    st.markdown("#### 占位符说明")
+    placeholders = [
+        "{设备类型}", "{法规标准}", "{生成日期}", "{年份}",
+        "{URS文档编号}", "{技术文档编号}", "{报价文档编号}",
+        "{关键需求点}", "{技术规格}", "{客户名称}", "{项目名称}"
+    ]
+    
+    st.code("\n".join(placeholders))
+    
+    uploaded_template = st.file_uploader("上传自定义模板", type=["docx", "xlsx", "md", "txt"])
+    if uploaded_template:
+        template_name = st.text_input("模板名称")
+        if st.button("保存模板"):
+            st.session_state.templates[template_name] = uploaded_template.read()
+            save_to_local_storage("templates", st.session_state.templates)
+            st.success("模板保存成功")
+    
+    if st.session_state.templates:
+        st.markdown("#### 已保存模板")
+        for name in st.session_state.templates.keys():
+            st.write(f"- {name}")
+
+def generate_urs_response(equipment_type, regulations, requirements, urs_text):
+    regulation_text = ", ".join(regulations)
+    doc_number = datetime.now().strftime("%Y%m%d")
+    
+    content = f"""# {equipment_type} - URS逐条回复
+
+**文档编号**: PHARMA-URS-{doc_number}
+**生成日期**: {datetime.now().strftime("%Y年%m月%d日")}
+**适用法规**: {regulation_text}
+
+---
+
+## 一、概述
+
+本回复文档针对贵公司提出的{equipment_type}用户需求说明（URS）进行逐条响应，确保方案符合{regulation_text}要求。
+
+## 二、URS逐条回复
+
+"""
+    
+    for i, point in enumerate(requirements["key_points"], 1):
+        content += f"""### {i}. {point}
+
+**我方响应**: 我方完全理解并满足此项要求，将在IQ/OQ/PQ验证中予以确认。
+**法规依据**: 符合{regulation_text}相关要求。
+**验证方式**: IQ/OQ/PQ
+
+"""
+    
+    content += """---
+
+## 三、合规声明
+
+我方保证所提供设备符合上述法规要求，并提供完整的验证文件包。
+
+**回复单位**: [贵公司名称]
+**技术负责人**: [负责人姓名]
+**联系电话**: [联系电话]
+**日期**: """ + datetime.now().strftime("%Y年%m月%d日")
+    
+    st.session_state.generated_documents = {"urs_response": content}
+    
+    with st.expander("📖 预览文档", expanded=True):
+        st.markdown(content)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📝 复制到剪贴板", content, "text/plain")
+    with col2:
+        st.download_button("📄 下载Markdown", content.encode("utf-8"), f"URS回复_{doc_number}.md")
+    
+    save_to_history("URS回复", equipment_type, regulations, content=content)
+
+def generate_quotation(equipment_type, regulations, config_level, customer_name, project_name, contact_person):
+    prices = {
+        "单体无菌隔离器": {"基础": 300000, "标准": 500000, "高级": 800000},
+        "VHP传递窗": {"基础": 150000, "标准": 250000, "高级": 400000},
+        "整线隔离器": {"基础": 1500000, "标准": 2500000, "高级": 4000000},
+        "单体负压隔离器": {"基础": 400000, "标准": 600000, "高级": 1000000}
+    }
+    
+    price = prices[equipment_type][config_level]
+    tax = price * 0.13
+    total = price + tax
+    
+    doc_number = datetime.now().strftime("%Y%m%d")
+    
+    content = f"""# {equipment_type} - 报价单
+
+**报价编号**: PHARMA-QUOTE-{doc_number}
+**报价日期**: {datetime.now().strftime("%Y年%m月%d日")}
+**有效期**: 30天
+
+---
+
+## 客户信息
+
+| 项目 | 内容 |
+|------|------|
+| 客户名称 | {customer_name} |
+| 项目名称 | {project_name} |
+| 联系人 | {contact_person} |
+| 设备类型 | {equipment_type} |
+| 配置等级 | {config_level} |
+| 适用法规 | {', '.join(regulations)} |
+
+---
+
+## 报价明细
+
+| 项目 | 金额（元） |
+|------|------------|
+| 设备主机 | ¥{price:,} |
+| 标准配件 | ¥{int(price * 0.15):,} |
+| 运输保险 | ¥{int(price * 0.03):,} |
+| 安装调试 | ¥{int(price * 0.08):,} |
+| 培训服务 | ¥{int(price * 0.02):,} |
+| **小计** | **¥{int(price * 1.28):,}** |
+| 增值税(13%) | ¥{int(tax):,} |
+| **总计** | **¥{int(total * 1.28):,}** |
+
+---
+
+## 配置清单
+
+**{config_level}配置包含**:
+- 主机系统 ×1
+- HEPA过滤器 ×2
+- 备用手套 ×2副
+- 专用工具包 ×1
+- 操作手册 ×1
+- 验证文件包 ×1
+
+---
+
+## 商务条款
+
+- **付款方式**: 预付款30%，发货款60%，质保金10%
+- **交货期**: 收到预付款后45-60天
+- **质保期**: 12个月
+
+**报价单位**: [贵公司名称]
+**联系人**: [联系人姓名]
+**联系电话**: [联系电话]
+"""
+    
+    st.session_state.generated_documents = {"quotation": content}
+    
+    with st.expander("📖 预览报价单", expanded=True):
+        st.markdown(content)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button("📝 复制到剪贴板", content, "text/plain")
+    with col2:
+        st.download_button("📄 下载Markdown", content.encode("utf-8"), f"报价单_{doc_number}.md")
+    
+    save_to_history("报价单", equipment_type, regulations, config_level, f"¥{int(total * 1.28):,}", customer_name, content=content)
+
+def save_to_history(doc_type, equipment, regulations, config="标准", amount="", customer="", content=""):
+    record = {
+        "type": doc_type,
+        "equipment": equipment,
+        "regulations": ", ".join(regulations),
+        "config": config,
+        "amount": amount,
+        "customer": customer,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "content": content
+    }
+    st.session_state.history.append(record)
+    save_to_local_storage("history", st.session_state.history)
 
 if __name__ == "__main__":
     main()
