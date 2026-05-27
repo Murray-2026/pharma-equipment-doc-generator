@@ -53,17 +53,17 @@ def init_session():
         st.session_state.parsed_requirements = []
     if "ai_parsed" not in st.session_state:
         st.session_state.ai_parsed = False
-    if "openai_api_key" not in st.session_state:
-        st.session_state.openai_api_key = ""
+    if "doubao_api_key" not in st.session_state:
+        st.session_state.doubao_api_key = ""
 
 def parse_urs_with_ai(text):
-    if not st.session_state.openai_api_key:
+    if not st.session_state.doubao_api_key:
         return parse_urs_fallback(text)
     
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {st.session_state.openai_api_key}"
+            "Authorization": f"Bearer {st.session_state.doubao_api_key}"
         }
         
         prompt = f"""
@@ -71,7 +71,7 @@ def parse_urs_with_ai(text):
         
         {text}
         
-        请按照以下JSON格式输出：
+        请按照以下JSON格式输出，不要有其他文本：
         {{
             "requirements": [
                 {{
@@ -89,12 +89,12 @@ def parse_urs_with_ai(text):
         """
         
         data = {
-            "model": "gpt-3.5-turbo",
+            "model": "ep-20241203192743-259d2",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3
         }
         
-        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data, timeout=60)
+        response = requests.post("https://ark.cn-beijing.volces.com/api/v3/chat/completions", headers=headers, json=data, timeout=60)
         result = response.json()
         
         if "choices" in result:
@@ -807,11 +807,11 @@ def main():
         
         st.markdown("---")
         st.markdown("### ⚙️ AI配置（可选）")
-        st.text_input("OpenAI API Key（启用AI智能解析）", key="openai_api_key", type="password")
-        if st.session_state.openai_api_key:
-            st.success("✅ AI解析已启用")
+        st.text_input("豆包API Key（启用AI智能解析）", key="doubao_api_key", type="password")
+        if st.session_state.doubao_api_key:
+            st.success("✅ 豆包AI解析已启用")
         else:
-            st.info("提示：输入OpenAI API Key可启用AI智能解析功能")
+            st.info("提示：输入豆包API Key可启用AI智能解析功能")
         
         st.markdown("---")
         st.markdown("### 📝 客户URS/询盘输入")
